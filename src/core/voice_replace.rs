@@ -156,6 +156,17 @@ pub fn chara_id_in(sheet: &str) -> Option<(i32, Range<usize>)> {
         }
     }
 
+    if let Some(at) = sheet.rfind("_vo_") {
+        let start = at + "_vo_".len();
+        if let Some(head) = sheet.get(start..start + 4) {
+            if let Ok(chara_id) = head.parse::<i32>() {
+                if (CHARA_ID_MIN..=CHARA_ID_MAX).contains(&chara_id) {
+                    return Some((chara_id, start..start + 4));
+                }
+            }
+        }
+    }
+
     let start = sheet.rfind('_').map(|index| index + 1).unwrap_or(0);
     let segment = &sheet[start..];
     if segment.len() < 4 {
@@ -194,6 +205,7 @@ mod tests {
 
         assert_eq!(parse("1157/snd_bgm_live_1157_chara_1003_01"), Some(1003));
         assert_eq!(parse("1157/snd_bgm_live_1157_chara_1022_01"), Some(1022));
+        assert_eq!(parse("1157/snd_bgm_live_1157_vo_1006_02"), Some(1006));
         assert_eq!(parse("1157/snd_bgm_live_1157_oke_01"), None);
         assert_eq!(parse("1157/snd_bgm_live_1157_preview_02"), None);
     }
