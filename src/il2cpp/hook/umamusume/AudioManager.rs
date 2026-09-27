@@ -297,5 +297,21 @@ pub fn init(umamusume: *const Il2CppImage) {
         _SONGCHARAPLAYBACKS_FIELD = get_field_from_name(AudioManager, c"_songCharaPlaybacks");
         _BGMPLAYBACK_FIELD = get_field_from_name(AudioManager, c"_bgmPlayback");
         _ATOMSOURCEARRAYBGM_FIELD = get_field_from_name(AudioManager, c"_atomSourceArrayBGM");
+
+        if Hachimi::instance().config.load().debug_mode {
+            let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
+            let mut names: Vec<String> = Vec::new();
+            loop {
+                let method = crate::il2cpp::api::il2cpp_class_get_methods(AudioManager, &mut iter);
+                if method.is_null() { break; }
+                if (*method).is_generic() == 0 {
+                    names.push(
+                        std::ffi::CStr::from_ptr((*method).name).to_string_lossy().to_string()
+                    );
+                }
+            }
+            names.sort();
+            debug!("[am] AudioManager methods ({}): {}", names.len(), names.join(", "));
+        }
     }
 }
