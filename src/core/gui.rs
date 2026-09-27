@@ -4912,6 +4912,9 @@ struct ConfigEditor {
     font_color_options: Arc<Vec<String>>,
     outline_size_options: Arc<Vec<String>>,
     outline_color_options: Arc<Vec<String>>,
+    char_replace_search: Mutex<String>,
+    chara_choices: Arc<Vec<(i32, String)>>,
+    dress_entries: Mutex<Option<Arc<Vec<(i32, i32, String)>>>>,
 }
 
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -5052,7 +5055,52 @@ impl ConfigEditor {
             font_color_options,
             outline_size_options,
             outline_color_options,
+            char_replace_search: Mutex::new(String::new()),
+            chara_choices: Arc::new(ConfigEditor::load_chara_choices()),
+            dress_entries: Mutex::new(None),
         }
+    }
+
+    /// Character ids with their (localized) names, for the replacement combos.
+    fn load_chara_choices() -> Vec<(i32, String)> {
+        let mut choices = vec![(0, t!("default").into_owned())];
+        let data = Hachimi::instance().chara_data.load();
+        for &id in data.chara_ids.iter() {
+            choices.push((id, data.get_name(id)));
+        }
+        choices.sort_by_key(|choice| choice.0);
+        choices
+    }
+
+    fn dress_combo_items(&self, entries: &[(i32, i32, String)], chara_id: i32, current: i32) -> Vec<(i32, String)> {
+        let localized = Hachimi::instance().localized_data.load();
+        let localized_dress = localized.text_data_dict.get(&5);
+
+        let mut items: Vec<(i32, String)> = entries.iter()
+            .filter(|(_, entry_chara_id, _)| chara_id <= 0 || *entry_chara_id == 0 || *entry_chara_id == chara_id)
+            .map(|(dress_id, entry_chara_id, name)| {
+                let label = if *entry_chara_id == 0 {
+                    format!("{dress_id}")
+                }
+                else if let Some(name) = localized_dress.and_then(|dict| dict.get(dress_id)) {
+                    format!("{dress_id} {name}")
+                }
+                else if name.is_empty() {
+                    format!("{dress_id}")
+                }
+                else {
+                    format!("{dress_id} {name}")
+                };
+                (*dress_id, label)
+            })
+            .collect();
+
+        // Make sure the value already stored in the config stays selectable.
+        if current != 0 && !items.iter().any(|(dress_id, _)| *dress_id == current) {
+            items.insert(0, (current, format!("{current}")));
+        }
+        items.sort_by_key(|(dress_id, _)| *dress_id);
+        items
     }
 
     fn restore_defaults(&mut self) {
@@ -6318,23 +6366,61 @@ impl ConfigEditor {
             ui.add_space(4.0);
         }
 
+        let chara_choices = self.chara_choices.clone();
+        let chara_items: Vec<(i32, &str)> = chara_choices.iter()
+            .map(|(id, name)| (*id, name.as_str()))
+            .collect();
+
+        let dress_entries = {
+            let mut slot = self.dress_entries.lock().unwrap();
+            if slot.is_none() {
+                *slot = Some(Arc::new(crate::il2cpp::sql::get_all_dress_entries()));
+            }
+            slot.as_ref().unwrap().clone()
+        };
+
         let mut remove_index: Option<usize> = None;
         for (index, entry) in cfg.data.iter_mut().enumerate() {
             ui.horizontal(|ui| {
                 ui.label(format!("#{}", index + 1));
                 ui.label(t!("config_editor.char_replace_orig"));
-                ui.add(egui::DragValue::new(&mut entry.orig_char_id).speed(1.0).range(0..=99999).fixed_decimals(0));
+                Gui::run_combo_menu(
+                    ui,
+                    egui::Id::new("char_replace_orig").with(index),
+                    &mut entry.orig_char_id,
+                    &chara_items,
+                    &mut self.char_replace_search.lock().unwrap()
+                );
                 ui.label("\u{f061}");
                 ui.label(t!("config_editor.char_replace_new"));
-                ui.add(egui::DragValue::new(&mut entry.new_char_id).speed(1.0).range(0..=99999).fixed_decimals(0));
+                Gui::run_combo_menu(
+                    ui,
+                    egui::Id::new("char_replace_new").with(index),
+                    &mut entry.new_char_id,
+                    &chara_items,
+                    &mut self.char_replace_search.lock().unwrap()
+                );
+            });
+
+            ui.horizontal(|ui| {
                 ui.label(t!("config_editor.char_replace_cloth"));
-                ui.add(egui::DragValue::new(&mut entry.new_cloth_id).speed(1.0).range(0..=999999).fixed_decimals(0));
+                let dress_items = self.dress_combo_items(&dress_entries, entry.new_char_id, entry.new_cloth_id);
+                let dress_items: Vec<(i32, &str)> = dress_items.iter()
+                    .map(|(dress_id, name)| (*dress_id, name.as_str()))
+                    .collect();
+                Gui::run_combo_menu(
+                    ui,
+                    egui::Id::new("char_replace_cloth").with(index),
+                    &mut entry.new_cloth_id,
+                    &dress_items,
+                    &mut self.char_replace_search.lock().unwrap()
+                );
                 ui.checkbox(&mut entry.replace_mini, t!("config_editor.char_replace_mini"));
                 if ui.button("\u{f00d}").clicked() {
                     remove_index = Some(index);
                 }
             });
-            ui.add_space(2.0 * scale);
+            ui.add_space(4.0 * scale);
         }
 
         if let Some(index) = remove_index {
