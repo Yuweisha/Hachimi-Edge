@@ -54,6 +54,29 @@ pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppStri
     Some(new_ptr)
 }
 
+pub fn rewrite_cue_sheet_to(cue_sheet: *mut Il2CppString, chara_id: i32) -> Option<*mut Il2CppString> {
+    if cue_sheet.is_null() {
+        return None;
+    }
+
+    let sheet = unsafe { &*cue_sheet }.as_utf16str().to_string();
+    let (orig_id, range) = chara_id_in(&sheet)?;
+    if orig_id == chara_id {
+        return None;
+    }
+
+    let mut new_sheet = sheet.clone();
+    new_sheet.replace_range(range, &format!("{:04}", chara_id));
+
+    let new_ptr = new_sheet.to_il2cpp_string();
+    if new_ptr.is_null() {
+        return None;
+    }
+
+    debug!("[voice] {sheet} -> {new_sheet}（强制）");
+    Some(new_ptr)
+}
+
 pub fn effective_char_id(chara_id: i32) -> i32 {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();

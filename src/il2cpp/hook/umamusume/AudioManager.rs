@@ -303,9 +303,16 @@ extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
     }
 
     if !cue_info.is_null() {
-        let new_sheet = crate::core::voice_replace::rewrite_cue_sheet(
-            unsafe { *cue_info }.CueSheetName
-        );
+        let force = Hachimi::instance().config.load().replace_global_char.song_force_chara;
+        let new_sheet = if force != 0 {
+            crate::core::voice_replace::rewrite_cue_sheet_to(
+                unsafe { *cue_info }.CueSheetName, force
+            )
+        } else {
+            crate::core::voice_replace::rewrite_cue_sheet(
+                unsafe { *cue_info }.CueSheetName
+            )
+        };
         if let Some(new_sheet) = new_sheet {
             unsafe { (*cue_info).CueSheetName = new_sheet; }
         }
@@ -388,6 +395,13 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
 }
 
 fn extra_song_sheets(names: &[String]) -> Vec<String> {
+    let config = Hachimi::instance().config.load();
+    let char_replace = &config.replace_global_char;
+    if !char_replace.enable {
+        return Vec::new();
+    }
+
+    let force = char_replace.song_force_chara;
     let mut extra: Vec<String> = Vec::new();
 
     for name in names {
@@ -395,7 +409,11 @@ fn extra_song_sheets(names: &[String]) -> Vec<String> {
             continue;
         };
 
-        let new_id = crate::core::voice_replace::effective_char_id(chara_id);
+        let new_id = if force != 0 {
+            force
+        } else {
+            crate::core::voice_replace::effective_char_id(chara_id)
+        };
         if new_id == chara_id {
             continue;
         }
