@@ -5078,18 +5078,11 @@ impl ConfigEditor {
 
         let mut items: Vec<(i32, String)> = entries.iter()
             .filter(|(_, entry_chara_id, _)| chara_id <= 0 || *entry_chara_id == 0 || *entry_chara_id == chara_id)
-            .map(|(dress_id, entry_chara_id, name)| {
-                let label = if *entry_chara_id == 0 {
-                    format!("{dress_id}")
-                }
-                else if let Some(name) = localized_dress.and_then(|dict| dict.get(dress_id)) {
-                    format!("{dress_id} {name}")
-                }
-                else if name.is_empty() {
-                    format!("{dress_id}")
-                }
-                else {
-                    format!("{dress_id} {name}")
+            .map(|(dress_id, _entry_chara_id, name)| {
+                let label = match localized_dress.and_then(|dict| dict.get(dress_id)) {
+                    Some(localized) => format!("{dress_id} {localized}"),
+                    None if name.is_empty() => format!("{dress_id}"),
+                    None => format!("{dress_id} {name}"),
                 };
                 (*dress_id, label)
             })
