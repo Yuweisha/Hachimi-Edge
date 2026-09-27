@@ -107,6 +107,10 @@ fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut
     if *dress_id < 100000 && !char_replace.replace_universal {
         replace_dress = false;
     }
+    debug!(
+        "[replace] 进入 ctrl={} chara={} dress={} head={} replace_dress={}",
+        controller_type, *chara_id, *dress_id, *head_id, replace_dress
+    );
 
     if controller_type == UmaControllerType::Mini as i32 {
         if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, true) {
@@ -138,10 +142,15 @@ fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut
     }
 
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
+        let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
         if replace_dress { *dress_id = new_dress_id; }
         align_dress_with_chara(dress_id, new_chara_id);
         *head_id = sql::get_head_id_from_dress_id(*dress_id);
+        debug!(
+            "[replace] ctrl={} chara {}->{} dress {}->{} head {}->{}",
+            controller_type, orig.0, *chara_id, orig.1, *dress_id, orig.2, *head_id
+        );
         return true;
     }
 
