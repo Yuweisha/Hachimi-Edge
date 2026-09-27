@@ -150,7 +150,8 @@ config_editor:
   char_replace_orig: "原角色"
   char_replace_new: "新角色"
   char_replace_cloth: "服装"
-  char_replace_mini: "迷你"
+  char_replace_mini: "替换迷你角色"
+  char_replace_delete: "删除配置"
   char_replace_log_cues: "记录所有音频 cue（排查用）"
   char_replace_empty:
   char_replace_add: "\uf067 添加规则"

@@ -1218,7 +1218,7 @@ pub fn get_all_dress_entries() -> Vec<(i32, i32, String)> {
 
     if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
         let sql = "SELECT D.id, D.chara_id, T.text FROM dress_data AS D \
-                   LEFT JOIN text_data AS T ON T.\"index\" = D.id AND T.id = 5";
+                   LEFT JOIN text_data AS T ON T.\"index\" = D.id AND T.id = 14";
         let query = Connection::Query(conn, sql.to_il2cpp_string());
         if !query.is_null() {
             while Query::Step(query) {
