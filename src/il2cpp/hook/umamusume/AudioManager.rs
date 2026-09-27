@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use crate::{
     core::{Hachimi, captions, game::Region, gui, utils::{race_seek_seh, race_seek_stage}},
     il2cpp::{
@@ -326,49 +326,66 @@ extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
 
 // public Boolean AddSongCueSheet(Int32, String[]) { }
 //
+//
 type AddSongCueSheetFn = extern "C" fn(this: *mut Il2CppObject, music_id: i32,
     sheets: *mut Il2CppArray) -> bool;
 extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
     sheets: *mut Il2CppArray
 ) -> bool {
+    let orig = get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn);
     let log_cues = Hachimi::instance().config.load().replace_global_char.log_audio_cues;
 
-    if log_cues && !sheets.is_null() {
-        let array = Array::<*mut Il2CppString>::from(sheets);
-        let names: Vec<String> = unsafe { array.as_slice() }
+    let names: Vec<String> = if sheets.is_null() {
+        Vec::new()
+    } else {
+        unsafe { Array::<*mut Il2CppString>::from(sheets).as_slice() }
             .iter()
             .map(|item| cue_str(*item))
-            .collect();
+            .collect()
+    };
+
+    if log_cues {
         debug!("[song] AddSongCueSheet(music_id={}, {} 条): {}",
             music_id, names.len(), names.join(", "));
     }
 
-    let result = get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn)(this, music_id, sheets);
-
-    if !IN_SHEET_SUPPLEMENT.swap(true, Ordering::AcqRel) {
-        supplement_song_sheets(this, music_id, sheets);
-        IN_SHEET_SUPPLEMENT.store(false, Ordering::Release);
+    let extra = extra_song_sheets(&names);
+    if extra.is_empty() {
+        return orig(this, music_id, sheets);
     }
 
-    result
+    let Ok(mscorlib) = get_assembly_image(c"mscorlib.dll") else { return orig(this, music_id, sheets) };
+    let Ok(string_class) = get_class(mscorlib, c"System", c"String") else {
+        return orig(this, music_id, sheets);
+    };
+
+    let mut merged = names;
+    merged.extend(extra.iter().cloned());
+
+    if log_cues {
+        debug!("[song] 连同 {} 条替换角色的人声轨一起加载: {}", extra.len(), extra.join(", "));
+    }
+
+    let array = Array::<*mut Il2CppString>::new(string_class, merged.len());
+    if array.this.is_null() {
+        return orig(this, music_id, sheets);
+    }
+
+    unsafe {
+        let slice = array.as_slice();
+        for (i, name) in merged.iter().enumerate() {
+            slice[i] = name.to_il2cpp_string();
+        }
+    }
+
+    orig(this, music_id, array.this)
 }
 
-static IN_SHEET_SUPPLEMENT: AtomicBool = AtomicBool::new(false);
-
-fn supplement_song_sheets(this: *mut Il2CppObject, music_id: i32, sheets: *mut Il2CppArray) {
-    if sheets.is_null() {
-        return;
-    }
-
-    let Ok(mscorlib) = get_assembly_image(c"mscorlib.dll") else { return };
-    let Ok(string_class) = get_class(mscorlib, c"System", c"String") else { return };
-
-    let array = Array::<*mut Il2CppString>::from(sheets);
+fn extra_song_sheets(names: &[String]) -> Vec<String> {
     let mut extra: Vec<String> = Vec::new();
 
-    for item in unsafe { array.as_slice() }.iter() {
-        let name = cue_str(*item);
-        let Some((chara_id, range)) = crate::core::voice_replace::chara_id_in(&name) else {
+    for name in names {
+        let Some((chara_id, range)) = crate::core::voice_replace::chara_id_in(name) else {
             continue;
         };
 
@@ -379,30 +396,12 @@ fn supplement_song_sheets(this: *mut Il2CppObject, music_id: i32, sheets: *mut I
 
         let mut new_name = name.clone();
         new_name.replace_range(range, &format!("{:04}", new_id));
-        if !extra.contains(&new_name) {
+        if !names.contains(&new_name) && !extra.contains(&new_name) {
             extra.push(new_name);
         }
     }
 
-    if extra.is_empty() {
-        return;
-    }
-
-    debug!("[song] 补加载 {} 条替换角色的人声轨: {}", extra.len(), extra.join(", "));
-
-    let array = Array::<*mut Il2CppString>::new(string_class, extra.len());
-    if array.this.is_null() {
-        return;
-    }
-
-    unsafe {
-        let slice = array.as_slice();
-        for (i, name) in extra.iter().enumerate() {
-            slice[i] = name.to_il2cpp_string();
-        }
-    }
-
-    get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn)(this, music_id, array.this);
+    extra
 }
 
 pub fn init(umamusume: *const Il2CppImage) {
