@@ -53,6 +53,25 @@ def_field_object_accessors!(get__atomSourceArrayBGM, set__atomSourceArrayBGM, _A
 def_method_wrapper_fn!(GetCueLength, GET_CUE_LENGTH_ADDR, f32, this: *mut Il2CppObject, cue_sheet: *mut Il2CppString, cue_id: i32);
 def_method_wrapper_fn!(GetVolume, GET_VOLUME_ADDR, f32, category: Category);
 
+def_method_wrapper_fn!(IsAvailableCueSheet, IS_AVAILABLE_CUE_SHEET_ADDR, bool, this: *mut Il2CppObject, cue_sheet: *mut Il2CppString);
+
+///
+///
+pub fn cue_sheet_available(sheet: &str) -> bool {
+    if unsafe { IS_AVAILABLE_CUE_SHEET_ADDR } == 0 {
+        return true;
+    }
+    let manager = instance();
+    if manager.is_null() {
+        return true;
+    }
+    let cue = sheet.to_il2cpp_string();
+    if cue.is_null() {
+        return true;
+    }
+    IsAvailableCueSheet(manager, cue)
+}
+
 pub fn race_slider_music_base() -> bool {
     let audio_manager = instance();
     if audio_manager.is_null() { return false; }
@@ -490,6 +509,7 @@ pub fn init(umamusume: *const Il2CppImage) {
         CLASS = AudioManager;
         GET_CRIAUDIOMANAGER_ADDR = get_method_addr(AudioManager, c"get_CriAudioManager", 0);
         GET_CUE_LENGTH_ADDR = get_method_addr(AudioManager, c"GetCueLength", 2);
+        IS_AVAILABLE_CUE_SHEET_ADDR = get_method_addr(AudioManager, c"IsAvailableCueSheet", 1);
         PLAY_BGM_FROM_NAME_ADDR = get_method_addr(AudioManager, c"PlayBgmFromName", 8);
         GET_VOLUME_ADDR = get_method_addr(AudioManager, c"GetVolume", 1);
 
