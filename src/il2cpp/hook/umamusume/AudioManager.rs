@@ -331,6 +331,42 @@ extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
     result
 }
 
+// public CriAtomCueSheet AddCueSheetByCueName(String) { }
+//
+//
+type AddCueSheetByCueNameFn = extern "C" fn(this: *mut Il2CppObject,
+    cue_name: *mut Il2CppString) -> *mut Il2CppObject;
+extern "C" fn AddCueSheetByCueName(this: *mut Il2CppObject,
+    cue_name: *mut Il2CppString
+) -> *mut Il2CppObject {
+    let orig = get_orig_fn!(AddCueSheetByCueName, AddCueSheetByCueNameFn);
+    let log_cues = Hachimi::instance().config.load().replace_global_char.log_audio_cues;
+
+    let name = cue_str(cue_name);
+    let result = orig(this, cue_name);
+
+    if log_cues && name.contains("live") {
+        debug!("[song] AddCueSheetByCueName('{}') -> {}",
+            name, if result.is_null() { "null" } else { "ok" });
+    }
+
+    if let Some(target) = crate::core::voice_replace::rewrite_cue_sheet_name(&name) {
+        if log_cues {
+            debug!("[song]   顺带加载替换目标: {}", target);
+        }
+        let ptr = target.to_il2cpp_string();
+        if !ptr.is_null() {
+            let added = orig(this, ptr);
+            if log_cues {
+                debug!("[song]   替换目标加载结果: {}",
+                    if added.is_null() { "null（资源不存在）" } else { "ok" });
+            }
+        }
+    }
+
+    result
+}
+
 // public Boolean AddSongCueSheet(Int32, String[]) { }
 //
 //
@@ -442,6 +478,11 @@ pub fn init(umamusume: *const Il2CppImage) {
     let add_song_sheet_addr = get_method_addr(AudioManager, c"AddSongCueSheet", 2);
     if add_song_sheet_addr != 0 {
         new_hook!(add_song_sheet_addr, AddSongCueSheet);
+    }
+
+    let add_cue_by_name_addr = get_method_addr(AudioManager, c"AddCueSheetByCueName", 1);
+    if add_cue_by_name_addr != 0 {
+        new_hook!(add_cue_by_name_addr, AddCueSheetByCueName);
     }
 
     unsafe {

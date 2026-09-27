@@ -54,6 +54,28 @@ pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppStri
     Some(new_ptr)
 }
 
+pub fn rewrite_cue_sheet_name(sheet: &str) -> Option<String> {
+    let (chara_id, range) = chara_id_in(sheet)?;
+
+    let config = Hachimi::instance().config.load();
+    let char_replace = &config.replace_global_char;
+    if !char_replace.enable {
+        return None;
+    }
+
+    let entry = char_replace
+        .data
+        .iter()
+        .find(|entry| entry.orig_char_id == chara_id)?;
+    if entry.new_char_id == 0 || entry.new_char_id == chara_id {
+        return None;
+    }
+
+    let mut new_sheet = sheet.to_string();
+    new_sheet.replace_range(range, &format!("{:04}", entry.new_char_id));
+    Some(new_sheet)
+}
+
 pub fn rewrite_cue_sheet_to(cue_sheet: *mut Il2CppString, chara_id: i32) -> Option<*mut Il2CppString> {
     if cue_sheet.is_null() {
         return None;
