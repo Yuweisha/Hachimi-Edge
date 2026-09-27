@@ -45,6 +45,12 @@ fn resolve_target_sheet(sheet: &str, range: Range<usize>, new_chara: i32) -> Opt
         return Some(same);
     }
 
+    use crate::il2cpp::hook::umamusume::AudioManager;
+    if AudioManager::load_cue_sheet(&same) && cue_available(&same) {
+        debug!("[voice] {sheet} 补加载了替换目标 {same}");
+        return Some(same);
+    }
+
     let tail = sheet.get(range.end..)?;
     let variant = tail.strip_prefix('_')?;
     if variant.len() != 2 || !variant.chars().all(|c| c.is_ascii_digit()) {
