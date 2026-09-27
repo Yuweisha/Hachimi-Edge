@@ -378,7 +378,13 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
         }
     }
 
-    orig(this, music_id, array.this)
+    let ok = orig(this, music_id, array.this);
+
+    if log_cues {
+        debug!("[song] 合并列表加载结果: {}", ok);
+    }
+
+    ok
 }
 
 fn extra_song_sheets(names: &[String]) -> Vec<String> {
