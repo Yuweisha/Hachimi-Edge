@@ -34,7 +34,7 @@ pub enum UmaControllerType {
 }
 
 fn is_replacable(controller_type: i32) -> bool {
-    !matches!(controller_type, 0x0 | 0x7 | 0x8 | 0xd)
+    !matches!(controller_type, 0x0 | 0x7 | 0x8 | 0xd | 0x1919810)
 }
 
 fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini: bool) -> Option<(i32, i32)> {
