@@ -1,6 +1,14 @@
 name: Create Release
 
-on: workflow_dispatch
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（手动触发时用，需与 Cargo.toml 的 version 一致）"
+        required: true
 
 permissions:
   contents: write
@@ -196,6 +204,19 @@ jobs:
         run: |
           VERSION=$(awk '/^\[package\]/{flag=1} flag && /^version/{print $3; exit}' Cargo.toml | tr -d '"')
           echo "RELEASE_VERSION=v$VERSION" >> $GITHUB_ENV
+
+      - name: Check tag matches version
+        shell: bash
+        run: |
+          EXPECTED="$RELEASE_VERSION"
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "::error::标签 ($TAG) 与 Cargo.toml 的版本 ($EXPECTED) 不一致"
+            exit 1
+          fi
+          echo "版本一致：$TAG"
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
