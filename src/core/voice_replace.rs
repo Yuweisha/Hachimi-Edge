@@ -73,6 +73,7 @@ pub fn effective_char_id(chara_id: i32) -> i32 {
 static SYSTEM_TEXT: Lazy<RwLock<FnvHashMap<(i32, i32), String>>> =
     Lazy::new(|| RwLock::new(FnvHashMap::default()));
 static SYSTEM_TEXT_LOADING: AtomicBool = AtomicBool::new(false);
+static SYSTEM_TEXT_READY: AtomicBool = AtomicBool::new(false);
 
 pub fn load_system_text() {
     let mut map = FnvHashMap::default();
@@ -100,6 +101,7 @@ pub fn load_system_text() {
     } else {
         debug!("[voice] 已缓存 {} 条台词文本", map.len());
         *SYSTEM_TEXT.write().unwrap() = map;
+        SYSTEM_TEXT_READY.store(true, Ordering::Release);
     }
 
     SYSTEM_TEXT_LOADING.store(false, Ordering::Release);
@@ -110,7 +112,9 @@ pub fn text_for(chara_id: i32, voice_id: i32) -> Option<*mut Il2CppString> {
         return Some(text.to_il2cpp_string());
     }
 
-    if !SYSTEM_TEXT_LOADING.swap(true, Ordering::AcqRel) {
+    if !SYSTEM_TEXT_READY.load(Ordering::Acquire)
+        && !SYSTEM_TEXT_LOADING.swap(true, Ordering::AcqRel)
+    {
         Thread::main_thread().schedule(load_system_text);
     }
 
