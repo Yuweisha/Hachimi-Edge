@@ -18,6 +18,54 @@ const CHARA_ID_MAX: i32 = 1999;
 
 static LAST_CUE_SHEET: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
+static CUE_AVAILABLE: Lazy<RwLock<FnvHashMap<String, bool>>> =
+    Lazy::new(|| RwLock::new(FnvHashMap::default()));
+
+fn cue_available(sheet: &str) -> bool {
+    if let Some(hit) = CUE_AVAILABLE.read().unwrap().get(sheet) {
+        return *hit;
+    }
+    let available = crate::il2cpp::hook::umamusume::AudioManager::cue_sheet_available(sheet);
+    CUE_AVAILABLE.write().unwrap().insert(sheet.to_string(), available);
+    available
+}
+
+fn resolve_target_sheet(sheet: &str, range: Range<usize>, new_chara: i32) -> Option<String> {
+    let same = {
+        let mut s = sheet.to_string();
+        s.replace_range(range.clone(), &format!("{:04}", new_chara));
+        s
+    };
+
+    if !sheet.contains("/snd_bgm_live_") {
+        return Some(same);
+    }
+
+    if cue_available(&same) {
+        return Some(same);
+    }
+
+    let tail = sheet.get(range.end..)?;
+    let variant = tail.strip_prefix('_')?;
+    if variant.len() != 2 || !variant.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+
+    let head = same.get(..same.len() - tail.len())?;
+    for v in 1..=9u32 {
+        let candidate = format!("{head}_{v:02}");
+        if candidate == same {
+            continue;
+        }
+        if cue_available(&candidate) {
+            debug!("[voice] {sheet} 的目标变体 {same} 不存在，退用 {candidate}");
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
 pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppString> {
     if cue_sheet.is_null() {
         return None;
@@ -41,8 +89,13 @@ pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppStri
         return None;
     }
 
-    let mut new_sheet = sheet.clone();
-    new_sheet.replace_range(range, &format!("{:04}", entry.new_char_id));
+    let new_sheet = match resolve_target_sheet(&sheet, range, entry.new_char_id) {
+        Some(new_sheet) => new_sheet,
+        None => {
+            debug!("[voice] {sheet} 没有可用的替换目标，保留原音");
+            return None;
+        }
+    };
 
     let new_ptr = new_sheet.to_il2cpp_string();
     if new_ptr.is_null() {
