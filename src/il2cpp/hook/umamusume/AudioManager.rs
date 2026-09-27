@@ -470,7 +470,8 @@ pub fn init(umamusume: *const Il2CppImage) {
                     .to_string_lossy()
                     .to_string();
 
-                if name.contains("Song") || name == "PrepareCharaPlaybacks" {
+                if name.contains("Song") || name.contains("CueSheet")
+                    || name == "PrepareCharaPlaybacks" {
                     let type_name = |ty: *const crate::il2cpp::types::Il2CppType| -> String {
                         if ty.is_null() {
                             "?".to_string()
