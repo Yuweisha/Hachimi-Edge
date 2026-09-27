@@ -321,6 +321,28 @@ extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
     result
 }
 
+// public Boolean AddSongCueSheet(Int32, String[]) { }
+//
+type AddSongCueSheetFn = extern "C" fn(this: *mut Il2CppObject, music_id: i32,
+    sheets: *mut Il2CppArray) -> bool;
+extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
+    sheets: *mut Il2CppArray
+) -> bool {
+    let log_cues = Hachimi::instance().config.load().replace_global_char.log_audio_cues;
+
+    if log_cues && !sheets.is_null() {
+        let array = Array::<*mut Il2CppString>::from(sheets);
+        let names: Vec<String> = unsafe { array.as_slice() }
+            .iter()
+            .map(|item| cue_str(*item))
+            .collect();
+        debug!("[song] AddSongCueSheet(music_id={}, {} 条): {}",
+            music_id, names.len(), names.join(", "));
+    }
+
+    get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn)(this, music_id, sheets)
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, AudioManager);
 
@@ -330,6 +352,11 @@ pub fn init(umamusume: *const Il2CppImage) {
     let prepare_song_addr = get_method_addr(AudioManager, c"_prepareSong", 4);
     if prepare_song_addr != 0 {
         new_hook!(prepare_song_addr, PrepareSong);
+    }
+
+    let add_song_sheet_addr = get_method_addr(AudioManager, c"AddSongCueSheet", 2);
+    if add_song_sheet_addr != 0 {
+        new_hook!(add_song_sheet_addr, AddSongCueSheet);
     }
 
     unsafe {
