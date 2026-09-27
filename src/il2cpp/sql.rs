@@ -1197,6 +1197,33 @@ pub fn get_dress_have_mini(dress_id: i32) -> bool {
     get_dress_info(dress_id).map(|info| info.have_mini).unwrap_or(false)
 }
 
+/// Every dress in master.mdb as `(dress id, chara id, dress name)`, the name
+/// coming from text_data category 5 and left empty when there is none.
+pub fn get_all_dress_entries() -> Vec<(i32, i32, String)> {
+    let mut items = Vec::new();
+    let db_path = get_masterdb_path();
+    let conn = Connection::new();
+
+    if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
+        let sql = "SELECT D.id, D.chara_id, T.text FROM dress_data AS D \
+                   LEFT JOIN text_data AS T ON T.\"index\" = D.id AND T.id = 5";
+        let query = Connection::Query(conn, sql.to_il2cpp_string());
+        if !query.is_null() {
+            while Query::Step(query) {
+                let name_ptr = Query::GetText(query, 2);
+                let name = unsafe { name_ptr.as_ref() }
+                    .map(|s| s.as_utf16str().to_string())
+                    .unwrap_or_default();
+                items.push((Query::GetInt(query, 0), Query::GetInt(query, 1), name));
+            }
+            Query::Dispose(query);
+        }
+        Connection::CloseDB(conn);
+    }
+
+    items
+}
+
 
 pub fn get_all_music_ids() -> Vec<i32> {
     get_single_column_int("SELECT music_id FROM live_data")
