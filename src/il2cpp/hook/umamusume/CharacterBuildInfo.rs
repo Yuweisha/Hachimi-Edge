@@ -1,5 +1,8 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crate::{
     core::{hachimi::GlobalCharReplaceConfig, Hachimi},
+    il2cpp::symbols::Thread,
     il2cpp::{
         sql,
         symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value},
@@ -68,12 +71,35 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
+static DRESS_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
+
+fn dress_table_ready() -> bool {
+    if sql::is_dress_info_ready() {
+        return true;
+    }
+
+    if !DRESS_PRELOAD_SCHEDULED.swap(true, Ordering::AcqRel) {
+        Thread::main_thread().schedule(|| {
+            if !sql::preload_dress_info() {
+                debug!("[replace] master.mdb 还没就绪，服装表稍后再加载");
+            }
+            DRESS_PRELOAD_SCHEDULED.store(false, Ordering::Release);
+        });
+    }
+
+    false
+}
+
 fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut i32, controller_type: i32) -> bool {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
     let char_replace = &config.replace_global_char;
 
     if !char_replace.enable {
+        return false;
+    }
+
+    if !dress_table_ready() {
         return false;
     }
 
