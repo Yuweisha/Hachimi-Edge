@@ -730,6 +730,49 @@ impl RaceStatHudCloneConfig {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+pub struct GlobalCharReplaceEntry {
+    #[serde(default, alias = "origCharId")]
+    pub orig_char_id: i32,
+    #[serde(default, alias = "newChrId", alias = "newCharId")]
+    pub new_char_id: i32,
+    #[serde(default, alias = "newClothId")]
+    pub new_cloth_id: i32,
+    #[serde(default, alias = "replaceMini")]
+    pub replace_mini: bool,
+}
+
+impl Default for GlobalCharReplaceEntry {
+    fn default() -> Self {
+        Self {
+            orig_char_id: 0,
+            new_char_id: 0,
+            new_cloth_id: 0,
+            replace_mini: false,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct GlobalCharReplaceConfig {
+    #[serde(default)]
+    pub enable: bool,
+    #[serde(default = "Config::default_true")]
+    pub replace_universal: bool,
+    #[serde(default)]
+    pub data: Vec<GlobalCharReplaceEntry>,
+}
+
+impl Default for GlobalCharReplaceConfig {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            replace_universal: true,
+            data: Vec::new(),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub debug_mode: bool,
@@ -892,6 +935,11 @@ pub struct Config {
     pub replace_to_builtin_font: bool,
     #[serde(default)]
     pub disabled_hooks: FnvHashSet<String>,
+
+    /// Global character replacement, ported from Trainers' Legend G.
+    /// Also accepts the original `replaceGlobalChar` key from TLG's config.json.
+    #[serde(default, alias = "replaceGlobalChar")]
+    pub replace_global_char: GlobalCharReplaceConfig,
 
     // theme settings
     #[serde(default = "Config::default_ui_accent")]
@@ -1432,5 +1480,67 @@ impl Default for SkillFormatting {
             name_short_lines: 1,
             name_short_mult: 1.0,
             name_sp_mult: 1.0 }
+    }
+}
+
+#[cfg(test)]
+mod global_char_replace_tests {
+    use super::{Config, GlobalCharReplaceConfig};
+
+    /// The `replaceGlobalChar` block from Trainers' Legend G's config.json must
+    /// deserialize as-is, camelCase keys included.
+    #[test]
+    fn parses_tlg_replace_global_char_block() {
+        let json = r#"{
+            "enable": false,
+            "data": [
+                {
+                    "origCharId": 1046,
+                    "newChrId": 1030,
+                    "newClothId": 103001,
+                    "replaceMini": false
+                }
+            ]
+        }"#;
+
+        let config: GlobalCharReplaceConfig = serde_json::from_str(json).expect("deserialize");
+        assert!(!config.enable);
+        assert!(config.replace_universal, "replaceUniversal defaults to true");
+        assert_eq!(config.data.len(), 1);
+
+        let entry = &config.data[0];
+        assert_eq!(entry.orig_char_id, 1046);
+        assert_eq!(entry.new_char_id, 1030);
+        assert_eq!(entry.new_cloth_id, 103001);
+        assert!(!entry.replace_mini);
+    }
+
+    /// The top-level config key from TLG is accepted next to Hachimi's own
+    /// snake_case spelling.
+    #[test]
+    fn config_accepts_tlg_top_level_key() {
+        let json = r#"{
+            "replaceGlobalChar": {
+                "enable": true,
+                "data": [
+                    { "origCharId": 1, "newChrId": 2, "newClothId": 201, "replaceMini": true }
+                ]
+            }
+        }"#;
+
+        let config: Config = serde_json::from_str(json).expect("deserialize");
+        assert!(config.replace_global_char.enable);
+        assert_eq!(config.replace_global_char.data.len(), 1);
+        assert!(config.replace_global_char.data[0].replace_mini);
+    }
+
+    /// Missing keys fall back to the defaults: disabled, universal dress
+    /// replacement on, no rules.
+    #[test]
+    fn defaults_when_absent() {
+        let config: Config = serde_json::from_str("{}").expect("deserialize");
+        assert!(!config.replace_global_char.enable);
+        assert!(config.replace_global_char.replace_universal);
+        assert!(config.replace_global_char.data.is_empty());
     }
 }

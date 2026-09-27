@@ -1141,6 +1141,63 @@ pub fn get_all_dress_ids() -> Vec<i32> {
     get_single_column_int("SELECT id FROM dress_data")
 }
 
+/// Per-dress data needed for global character replacement:
+/// the head model id and whether the dress has a mini character model.
+#[derive(Clone, Copy, Default)]
+pub struct DressInfo {
+    pub head_sub_id: i32,
+    pub have_mini: bool
+}
+
+static DRESS_INFO_CACHE: Lazy<RwLock<Option<FnvHashMap<i32, DressInfo>>>> = Lazy::new(|| RwLock::new(None));
+
+fn load_dress_info() -> FnvHashMap<i32, DressInfo> {
+    let mut items = FnvHashMap::default();
+    let db_path = get_masterdb_path();
+    let conn = Connection::new();
+
+    if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
+        let query = Connection::Query(conn, "SELECT id, head_sub_id, have_mini FROM dress_data".to_il2cpp_string());
+        if !query.is_null() {
+            while Query::Step(query) {
+                items.insert(Query::GetInt(query, 0), DressInfo {
+                    head_sub_id: Query::GetInt(query, 1),
+                    have_mini: Query::GetInt(query, 2) != 0
+                });
+            }
+            Query::Dispose(query);
+        }
+        Connection::CloseDB(conn);
+    }
+
+    items
+}
+
+/// Looks up `dress_data` for the given dress id, loading and caching the whole
+/// table on first use.
+pub fn get_dress_info(dress_id: i32) -> Option<DressInfo> {
+    {
+        let cache = DRESS_INFO_CACHE.read().unwrap();
+        if let Some(items) = cache.as_ref() {
+            return items.get(&dress_id).copied();
+        }
+    }
+
+    let items = load_dress_info();
+    let info = items.get(&dress_id).copied();
+    *DRESS_INFO_CACHE.write().unwrap() = Some(items);
+    info
+}
+
+pub fn get_head_id_from_dress_id(dress_id: i32) -> i32 {
+    get_dress_info(dress_id).map(|info| info.head_sub_id).unwrap_or(0)
+}
+
+pub fn get_dress_have_mini(dress_id: i32) -> bool {
+    get_dress_info(dress_id).map(|info| info.have_mini).unwrap_or(false)
+}
+
+
 pub fn get_all_music_ids() -> Vec<i32> {
     get_single_column_int("SELECT music_id FROM live_data")
 }
