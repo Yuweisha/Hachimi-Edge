@@ -158,6 +158,7 @@ config_editor:
   char_replace_tab: "\uf007 Character Replace"
   char_replace_desc: "Replace characters and their dresses by character id (ported from Trainers' Legend G)."
   char_replace_enable: "Enable character replacement"
+  char_replace_cutscene: "Replace in cutscenes as well"
   char_replace_universal: "Replace dress as well"
   char_replace_orig: "Original"
   char_replace_new: "New chara"

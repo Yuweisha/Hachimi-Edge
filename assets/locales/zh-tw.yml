@@ -110,6 +110,7 @@ config_editor:
   char_replace_tab: "\uf007 角色替換"
   char_replace_desc: "依角色 ID 替換遊戲內角色與服裝（移植自 Trainers' Legend G）。"
   char_replace_enable: "啟用角色替換"
+  char_replace_cutscene: "過場動畫中也替換角色"
   char_replace_universal: "同時替換服裝"
   char_replace_orig: "原角色"
   char_replace_new: "新角色"

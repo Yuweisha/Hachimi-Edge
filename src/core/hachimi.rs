@@ -762,6 +762,9 @@ pub struct GlobalCharReplaceConfig {
     pub log_audio_cues: bool,
     #[serde(default)]
     pub song_force_chara: i32,
+    ///
+    #[serde(default)]
+    pub replace_in_cutscene: bool,
     #[serde(default)]
     pub data: Vec<GlobalCharReplaceEntry>,
 }
@@ -773,6 +776,7 @@ impl Default for GlobalCharReplaceConfig {
             replace_universal: true,
             log_audio_cues: false,
             song_force_chara: 0,
+            replace_in_cutscene: false,
             data: Vec::new(),
         }
     }
