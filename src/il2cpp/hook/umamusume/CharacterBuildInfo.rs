@@ -42,6 +42,32 @@ fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini:
 
 const MINI_FALLBACK_DRESS_ID: i32 = 2;
 
+fn dress_belongs_to(dress_id: i32, chara_id: i32) -> bool {
+    match sql::get_dress_chara_id(dress_id) {
+        0 => true,
+        owner => owner == chara_id
+    }
+}
+
+fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
+    if dress_belongs_to(*dress_id, chara_id) {
+        return;
+    }
+    let fallback = chara_id * 100 + 1;
+    if sql::get_dress_info(fallback).is_some() {
+        warn!(
+            "dressId {} does not belong to chara {}! Replace to {}.",
+            *dress_id, chara_id, fallback
+        );
+        *dress_id = fallback;
+    } else {
+        warn!(
+            "dressId {} does not belong to chara {} and {} is missing!",
+            *dress_id, chara_id, fallback
+        );
+    }
+}
+
 fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut i32, controller_type: i32) -> bool {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
@@ -61,6 +87,7 @@ fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut
             if sql::get_dress_have_mini(new_dress_id) {
                 *chara_id = new_chara_id;
                 if replace_dress { *dress_id = new_dress_id; }
+                align_dress_with_chara(dress_id, new_chara_id);
                 *head_id = sql::get_head_id_from_dress_id(*dress_id);
                 return true;
             }
@@ -87,6 +114,7 @@ fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
         *chara_id = new_chara_id;
         if replace_dress { *dress_id = new_dress_id; }
+        align_dress_with_chara(dress_id, new_chara_id);
         *head_id = sql::get_head_id_from_dress_id(*dress_id);
         return true;
     }
