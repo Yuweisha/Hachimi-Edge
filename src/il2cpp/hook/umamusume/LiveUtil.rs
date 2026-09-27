@@ -5,29 +5,38 @@ use crate::{
 
 type GetSingCharaIdListFn = extern "C" fn(songId: i32, songPartNumber: i32, allCharaIdArray: *mut Il2CppArray, vocalCharaIdArray: *mut Il2CppArray, shuffledCharaDataList: *mut Il2CppObject) -> *mut Il2CppObject;
 extern "C" fn GetSingCharaIdList(songId: i32, songPartNumber: i32, allCharaIdArray: *mut Il2CppArray, vocalCharaIdArray: *mut Il2CppArray, shuffledCharaDataList: *mut Il2CppObject) -> *mut Il2CppObject {
-    let chara_vo_ids = &Hachimi::instance().config.load().live_vocals_swap;
+    let config = Hachimi::instance().config.load();
+    let chara_vo_ids = &config.live_vocals_swap;
+    let replace = &config.replace_global_char;
+    let force = replace.song_force_chara;
 
     if songId > 0 {
         unsafe {
-            if !vocalCharaIdArray.is_null() {
-                let len = (*vocalCharaIdArray).max_length as usize;
-                let data_ptr = vocalCharaIdArray.add(1) as *mut i32;
-
-                for i in 0..len.min(chara_vo_ids.len()) {
-                    if chara_vo_ids[i] != 0 {
-                        *data_ptr.add(i) = chara_vo_ids[i];              
-                    }
+            for (array, is_vocal) in [(vocalCharaIdArray, true), (allCharaIdArray, false)] {
+                if array.is_null() {
+                    continue;
                 }
-            }
 
-            if !allCharaIdArray.is_null() {
-                let len = (*allCharaIdArray).max_length as usize;
-                let data_ptr = allCharaIdArray.add(1) as *mut i32;
+                let len = (*array).max_length as usize;
+                let data_ptr = array.add(1) as *mut i32;
 
-                for i in 0..len.min(chara_vo_ids.len()) {
-                    let new_id = chara_vo_ids[i];
-                    if new_id != 0 {
+                for i in 0..len {
+                    let orig = if i < chara_vo_ids.len() { *data_ptr.add(i) } else { 0 };
+                    let mut new_id = orig;
+
+                    if i < chara_vo_ids.len() && chara_vo_ids[i] != 0 {
+                        new_id = chara_vo_ids[i];
+                    } else if force != 0 {
+                        new_id = force;
+                    } else if replace.enable && orig > 0 {
+                        new_id = crate::core::voice_replace::effective_char_id(orig);
+                    }
+
+                    if new_id != orig {
                         *data_ptr.add(i) = new_id;
+                        if replace.log_audio_cues && is_vocal {
+                            debug!("[song] 演唱者 {}: {} -> {}", i, orig, new_id);
+                        }
                     }
                 }
             }
