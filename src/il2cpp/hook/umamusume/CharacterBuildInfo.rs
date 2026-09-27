@@ -34,7 +34,11 @@ pub enum UmaControllerType {
 }
 
 fn is_replacable(controller_type: i32) -> bool {
-    !matches!(controller_type, 0x0 | 0x7 | 0x8 | 0xd | 0x1919810)
+    !matches!(controller_type, 0x0 | 0x7 | 0x8 | 0xd)
+}
+
+fn orig_allowed(allow_orig: bool, controller_type: i32) -> bool {
+    allow_orig || controller_type != UmaControllerType::Orig as i32
 }
 
 fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini: bool) -> Option<(i32, i32)> {
@@ -90,7 +94,10 @@ fn dress_table_ready() -> bool {
     false
 }
 
-fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut i32, controller_type: i32) -> bool {
+fn replace_char_controller(
+    chara_id: &mut i32, dress_id: &mut i32, head_id: &mut i32,
+    controller_type: i32, allow_orig: bool
+) -> bool {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
     let char_replace = &config.replace_global_char;
@@ -133,7 +140,7 @@ fn replace_char_controller(chara_id: &mut i32, dress_id: &mut i32, head_id: &mut
         return false;
     }
 
-    if !is_replacable(controller_type) {
+    if !is_replacable(controller_type) || !orig_allowed(allow_orig, controller_type) {
         return false;
     }
 
@@ -173,7 +180,7 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
             let controller_type: i32 = get_field_value(this, CONTROLLER_TYPE_FIELD);
             let mut head_model_sub_id: i32 = get_field_value(this, HEAD_MODEL_SUB_ID_FIELD);
 
-            if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type) {
+            if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false) {
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);
                 set_field_value(this, DRESS_ID_FIELD, &dress_id);
                 set_field_value(this, HEAD_MODEL_SUB_ID_FIELD, &head_model_sub_id);
@@ -196,7 +203,7 @@ extern "C" fn GetRaceDressId(this: *mut Il2CppObject, _is_apply_dress_change: bo
         let mut new_chara_id = chara_id;
         let mut new_dress_id = ret;
         let mut new_head_id = 0;
-        if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32) {
+        if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32, true) {
             return new_dress_id;
         }
     }
