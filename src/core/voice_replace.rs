@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicPtr, Ordering};
 
 use crate::core::Hachimi;
 use crate::il2cpp::ext::{Il2CppStringExt, StringExt};
-use crate::il2cpp::types::Il2CppString;
+use crate::il2cpp::hook::umamusume::MasterCharacterSystemText::{self, CharacterSystemText};
+use crate::il2cpp::symbols::IList;
+use crate::il2cpp::types::{Il2CppObject, Il2CppString};
 
 const CHARA_ID_MIN: i32 = 1000;
 const CHARA_ID_MAX: i32 = 1999;
@@ -46,6 +48,46 @@ pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppStri
     LAST_CUE_SHEET.store(new_ptr as *mut c_void, Ordering::SeqCst);
     debug!("[voice] {} -> {}", sheet, new_sheet);
     Some(new_ptr)
+}
+
+pub fn effective_char_id(chara_id: i32) -> i32 {
+    let hachimi = Hachimi::instance();
+    let config = hachimi.config.load();
+    let char_replace = &config.replace_global_char;
+    if !char_replace.enable {
+        return chara_id;
+    }
+
+    char_replace
+        .data
+        .iter()
+        .find(|entry| entry.orig_char_id == chara_id && entry.new_char_id != 0)
+        .map(|entry| entry.new_char_id)
+        .unwrap_or(chara_id)
+}
+
+pub fn text_for(chara_id: i32, voice_id: i32) -> Option<*mut Il2CppString> {
+    let list = MasterCharacterSystemText::GetByCharaId(chara_id);
+    if list.is_null() {
+        return None;
+    }
+
+    let ilist = IList::<*mut Il2CppObject>::new(list)?;
+    for item in ilist.iter() {
+        if item.is_null() {
+            continue;
+        }
+        if CharacterSystemText::get_VoiceId(item) != voice_id {
+            continue;
+        }
+
+        let text = CharacterSystemText::get_Text(item);
+        if !text.is_null() {
+            return Some(text);
+        }
+    }
+
+    None
 }
 
 fn chara_id_in(sheet: &str) -> Option<(i32, Range<usize>)> {

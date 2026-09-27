@@ -864,11 +864,24 @@ impl SelectQueryState for CharacterSystemTextQuery {
 
         if let Some(character_id) = self.character_id.int_value {
             if let Some(voice_id) = self.voice_id.value_or_try_get_int(query) {
-                return Hachimi::instance().localized_data.load()
+                let effective_id = crate::core::voice_replace::effective_char_id(character_id);
+
+                let localized = Hachimi::instance().localized_data.load();
+                if let Some(translated) = localized
                     .character_system_text_dict
-                    .get(&character_id)
-                    .map(|c| c.get(&voice_id).map(|s| s.to_il2cpp_string()))
-                    .unwrap_or_default()
+                    .get(&effective_id)
+                    .and_then(|c| c.get(&voice_id))
+                {
+                    return Some(translated.to_il2cpp_string());
+                }
+
+                if effective_id != character_id {
+                    if let Some(text) = crate::core::voice_replace::text_for(effective_id, voice_id) {
+                        return Some(text);
+                    }
+                }
+
+                return None;
             }
         }
 
@@ -949,7 +962,6 @@ impl SelectQueryState for RaceJikkyoMessageQuery {
         None
     }
 }
-
 
 // sqlparser extensions
 pub trait SelectExt {
@@ -1223,7 +1235,6 @@ pub fn get_all_dress_entries() -> Vec<(i32, i32, String)> {
 
     items
 }
-
 
 pub fn get_all_music_ids() -> Vec<i32> {
     get_single_column_int("SELECT music_id FROM live_data")
