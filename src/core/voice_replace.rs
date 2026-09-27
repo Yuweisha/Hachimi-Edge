@@ -1,13 +1,17 @@
 
 use std::ffi::c_void;
 use std::ops::Range;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::ptr;
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::RwLock;
 
-use crate::core::Hachimi;
+use fnv::FnvHashMap;
+use once_cell::sync::Lazy;
+use crate::core::{Hachimi, utils::get_masterdb_path};
 use crate::il2cpp::ext::{Il2CppStringExt, StringExt};
-use crate::il2cpp::hook::umamusume::MasterCharacterSystemText::{self, CharacterSystemText};
-use crate::il2cpp::symbols::IList;
-use crate::il2cpp::types::{Il2CppObject, Il2CppString};
+use crate::il2cpp::hook::LibNative_Runtime::Sqlite3::{Connection, Query};
+use crate::il2cpp::symbols::Thread;
+use crate::il2cpp::types::Il2CppString;
 
 const CHARA_ID_MIN: i32 = 1000;
 const CHARA_ID_MAX: i32 = 1999;
@@ -66,25 +70,48 @@ pub fn effective_char_id(chara_id: i32) -> i32 {
         .unwrap_or(chara_id)
 }
 
-pub fn text_for(chara_id: i32, voice_id: i32) -> Option<*mut Il2CppString> {
-    let list = MasterCharacterSystemText::GetByCharaId(chara_id);
-    if list.is_null() {
-        return None;
+static SYSTEM_TEXT: Lazy<RwLock<FnvHashMap<(i32, i32), String>>> =
+    Lazy::new(|| RwLock::new(FnvHashMap::default()));
+static SYSTEM_TEXT_LOADING: AtomicBool = AtomicBool::new(false);
+
+pub fn load_system_text() {
+    let mut map = FnvHashMap::default();
+    let db_path = get_masterdb_path();
+    let conn = Connection::new();
+
+    if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
+        let sql = "SELECT character_id, voice_id, text FROM character_system_text";
+        let query = Connection::Query(conn, sql.to_il2cpp_string());
+        if !query.is_null() {
+            while Query::Step(query) {
+                let text_ptr = Query::GetText(query, 2);
+                let text = unsafe { text_ptr.as_ref() }
+                    .map(|s| s.as_utf16str().to_string())
+                    .unwrap_or_default();
+                map.insert((Query::GetInt(query, 0), Query::GetInt(query, 1)), text);
+            }
+            Query::Dispose(query);
+        }
+        Connection::CloseDB(conn);
     }
 
-    let ilist = IList::<*mut Il2CppObject>::new(list)?;
-    for item in ilist.iter() {
-        if item.is_null() {
-            continue;
-        }
-        if CharacterSystemText::get_VoiceId(item) != voice_id {
-            continue;
-        }
+    if map.is_empty() {
+        warn!("[voice] character_system_text 为空，稍后再试");
+    } else {
+        debug!("[voice] 已缓存 {} 条台词文本", map.len());
+        *SYSTEM_TEXT.write().unwrap() = map;
+    }
 
-        let text = CharacterSystemText::get_Text(item);
-        if !text.is_null() {
-            return Some(text);
-        }
+    SYSTEM_TEXT_LOADING.store(false, Ordering::Release);
+}
+
+pub fn text_for(chara_id: i32, voice_id: i32) -> Option<*mut Il2CppString> {
+    if let Some(text) = SYSTEM_TEXT.read().unwrap().get(&(chara_id, voice_id)) {
+        return Some(text.to_il2cpp_string());
+    }
+
+    if !SYSTEM_TEXT_LOADING.swap(true, Ordering::AcqRel) {
+        Thread::main_thread().schedule(load_system_text);
     }
 
     None
