@@ -1189,6 +1189,30 @@ fn load_dress_info() -> FnvHashMap<i32, DressInfo> {
     items
 }
 
+static DRESS_INFO_READY: AtomicBool = AtomicBool::new(false);
+
+/// Whether the dress table has been loaded.
+///
+/// The load must not happen on first use from inside a game callback: opening
+/// SQLite while the game is walking its own objects deadlocks (same failure
+/// mode as the caption cache).
+pub fn is_dress_info_ready() -> bool {
+    DRESS_INFO_READY.load(Ordering::Acquire)
+}
+
+/// Loads the dress table ahead of time, from the main thread and outside any
+/// game callback. Returns false when the master database is not up yet, in
+/// which case the caller should try again later.
+pub fn preload_dress_info() -> bool {
+    let items = load_dress_info();
+    if items.is_empty() {
+        return false;
+    }
+    *DRESS_INFO_CACHE.write().unwrap() = Some(items);
+    DRESS_INFO_READY.store(true, Ordering::Release);
+    true
+}
+
 /// Looks up `dress_data` for the given dress id, loading and caching the whole
 /// table on first use.
 pub fn get_dress_info(dress_id: i32) -> Option<DressInfo> {
@@ -1201,7 +1225,11 @@ pub fn get_dress_info(dress_id: i32) -> Option<DressInfo> {
 
     let items = load_dress_info();
     let info = items.get(&dress_id).copied();
+    let loaded = !items.is_empty();
     *DRESS_INFO_CACHE.write().unwrap() = Some(items);
+    if loaded {
+        DRESS_INFO_READY.store(true, Ordering::Release);
+    }
     info
 }
 
