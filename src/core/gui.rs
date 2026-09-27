@@ -5066,7 +5066,7 @@ impl ConfigEditor {
         let mut choices = vec![(0, t!("default").into_owned())];
         let data = Hachimi::instance().chara_data.load();
         for &id in data.chara_ids.iter() {
-            choices.push((id, data.get_name(id)));
+            choices.push((id, format!("{} {}", id, data.get_name(id))));
         }
         choices.sort_by_key(|choice| choice.0);
         choices
@@ -6418,7 +6418,7 @@ impl ConfigEditor {
                     &mut self.char_replace_search.lock().unwrap()
                 );
                 ui.checkbox(&mut entry.replace_mini, t!("config_editor.char_replace_mini"));
-                if ui.button("\u{f00d}").clicked() {
+                if ui.button(t!("config_editor.char_replace_delete")).clicked() {
                     remove_index = Some(index);
                 }
             });
