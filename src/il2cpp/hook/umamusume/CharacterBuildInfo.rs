@@ -110,20 +110,20 @@ fn replace_char_controller(
         return false;
     }
 
-    let mut replace_dress = true;
-    if *dress_id < 100000 && !char_replace.replace_universal {
-        replace_dress = false;
+    if !char_replace.replace_universal && *dress_id < 100000 {
+        return false;
     }
+
     debug!(
-        "[replace] 进入 ctrl={} chara={} dress={} head={} replace_dress={}",
-        controller_type, *chara_id, *dress_id, *head_id, replace_dress
+        "[replace] 进入 ctrl={} chara={} dress={} head={}",
+        controller_type, *chara_id, *dress_id, *head_id
     );
 
     if controller_type == UmaControllerType::Mini as i32 {
         if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, true) {
             if sql::get_dress_have_mini(new_dress_id) {
                 *chara_id = new_chara_id;
-                if replace_dress { *dress_id = new_dress_id; }
+                *dress_id = new_dress_id;
                 align_dress_with_chara(dress_id, new_chara_id);
                 *head_id = sql::get_head_id_from_dress_id(*dress_id);
                 return true;
@@ -161,7 +161,7 @@ fn replace_char_controller(
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
         let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
-        if replace_dress { *dress_id = new_dress_id; }
+        *dress_id = new_dress_id;
         align_dress_with_chara(dress_id, new_chara_id);
         *head_id = sql::get_head_id_from_dress_id(*dress_id);
         debug!(
