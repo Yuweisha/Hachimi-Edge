@@ -115,7 +115,8 @@ config_editor:
   char_replace_new: "新角色"
   char_replace_cloth: "服裝"
   char_replace_mini: "迷你"
-  char_replace_empty: "尚無替換規則"
+  char_replace_log_cues: "記錄所有音訊 cue（排查用）"
+  char_replace_empty:
   char_replace_add: "\uf067 新增規則"
   language: "語言"
   disable_overlay: "禁用覆蓋層 (GUI)"
