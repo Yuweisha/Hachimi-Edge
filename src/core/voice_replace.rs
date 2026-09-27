@@ -121,7 +121,7 @@ pub fn text_for(chara_id: i32, voice_id: i32) -> Option<*mut Il2CppString> {
     None
 }
 
-fn chara_id_in(sheet: &str) -> Option<(i32, Range<usize>)> {
+pub fn chara_id_in(sheet: &str) -> Option<(i32, Range<usize>)> {
     if let Some(at) = sheet.rfind("_chara_") {
         let start = at + "_chara_".len();
         if let Some(head) = sheet.get(start..start + 4) {
