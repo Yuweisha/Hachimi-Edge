@@ -1,16 +1,13 @@
 use std::process::{Command, Output};
 
 fn setup_windows_build() {
-    // Link proxy export defs
     let absolute_path = std::fs::canonicalize("src/windows/proxy/exports.def").unwrap();
     if std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "msvc" {
         println!("cargo:rustc-cdylib-link-arg=/DEF:{}", absolute_path.display());
     } else {
-        // I have to remove the '/DEF:' every time I cross compile on linux, so might as well do this
         println!("cargo:rustc-cdylib-link-arg={}", absolute_path.display());
     }
 
-    // Generate and link version information
     let res = tauri_winres::WindowsResource::new();
     res.compile().unwrap();
 }
@@ -32,7 +29,7 @@ fn setup_version_env() {
         if let Some(output) = execute_command(Command::new("git").args(["rev-parse", "--short", "HEAD"])) {
             version_str.push('-');
             let output_str = command_output_to_string(output);
-            version_str.push_str(&output_str[..output_str.len()-1]); // remove \n
+            version_str.push_str(&output_str[..output_str.len()-1]);
         }
         else {
             println!("cargo:warning=Failed to retrieve git commit hash");
