@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::{
     core::{Hachimi, captions, game::Region, gui, utils::{race_seek_seh, race_seek_stage}},
     il2cpp::{
@@ -6,8 +6,11 @@ use crate::{
             AudioPlayback::{self, AudioPlayback_t},
             AtomSourceEx,
         },
-        ext::Il2CppStringExt,
-        symbols::{get_method_addr, get_field_from_name, Array, SingletonLike, Thread},
+        ext::{Il2CppStringExt, StringExt},
+        symbols::{
+            get_assembly_image, get_class, get_method_addr, get_field_from_name,
+            Array, SingletonLike, Thread
+        },
         types::*
     }
 };
@@ -340,7 +343,66 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
             music_id, names.len(), names.join(", "));
     }
 
-    get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn)(this, music_id, sheets)
+    let result = get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn)(this, music_id, sheets);
+
+    if !IN_SHEET_SUPPLEMENT.swap(true, Ordering::AcqRel) {
+        supplement_song_sheets(this, music_id, sheets);
+        IN_SHEET_SUPPLEMENT.store(false, Ordering::Release);
+    }
+
+    result
+}
+
+static IN_SHEET_SUPPLEMENT: AtomicBool = AtomicBool::new(false);
+
+fn supplement_song_sheets(this: *mut Il2CppObject, music_id: i32, sheets: *mut Il2CppArray) {
+    if sheets.is_null() {
+        return;
+    }
+
+    let Ok(mscorlib) = get_assembly_image(c"mscorlib.dll") else { return };
+    let Ok(string_class) = get_class(mscorlib, c"System", c"String") else { return };
+
+    let array = Array::<*mut Il2CppString>::from(sheets);
+    let mut extra: Vec<String> = Vec::new();
+
+    for item in unsafe { array.as_slice() }.iter() {
+        let name = cue_str(*item);
+        let Some((chara_id, range)) = crate::core::voice_replace::chara_id_in(&name) else {
+            continue;
+        };
+
+        let new_id = crate::core::voice_replace::effective_char_id(chara_id);
+        if new_id == chara_id {
+            continue;
+        }
+
+        let mut new_name = name.clone();
+        new_name.replace_range(range, &format!("{:04}", new_id));
+        if !extra.contains(&new_name) {
+            extra.push(new_name);
+        }
+    }
+
+    if extra.is_empty() {
+        return;
+    }
+
+    debug!("[song] 补加载 {} 条替换角色的人声轨: {}", extra.len(), extra.join(", "));
+
+    let array = Array::<*mut Il2CppString>::new(string_class, extra.len());
+    if array.this.is_null() {
+        return;
+    }
+
+    unsafe {
+        let slice = array.as_slice();
+        for (i, name) in extra.iter().enumerate() {
+            slice[i] = name.to_il2cpp_string();
+        }
+    }
+
+    get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn)(this, music_id, array.this);
 }
 
 pub fn init(umamusume: *const Il2CppImage) {
