@@ -161,6 +161,14 @@ pub fn resync_race_music(race_manager: *mut Il2CppObject, target_time: f32) -> b
     })
 }
 
+fn cue_str(p: *mut Il2CppString) -> String {
+    if p.is_null() {
+        String::new()
+    } else {
+        unsafe { &*p }.as_utf16str().to_string()
+    }
+}
+
 // Cute.Cri.Audio RequestCueInfo
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq)]
@@ -188,13 +196,7 @@ extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
 ) -> AudioPlayback_t {
     let log_cues = !cue_info.is_null()
         && Hachimi::instance().config.load().replace_global_char.log_audio_cues;
-    let to_str = |p: *mut Il2CppString| {
-        if p.is_null() {
-            String::new()
-        } else {
-            unsafe { &*p }.as_utf16str().to_string()
-        }
-    };
+    let to_str = cue_str;
 
     if log_cues {
         let info = unsafe { *cue_info };
@@ -280,11 +282,46 @@ extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
     result
 }
 
+// private AudioPlayback _prepareSong(Int32, RequestCueInfo, PlayParameters, AutoStopType) { }
+//
+type PrepareSongFn = extern "C" fn(this: *mut Il2CppObject, part: i32,
+    cue_info: *mut RequestCueInfo, play_param: *mut Il2CppObject, stop_type: i32
+) -> AudioPlayback_t;
+extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
+    cue_info: *mut RequestCueInfo, play_param: *mut Il2CppObject, stop_type: i32
+) -> AudioPlayback_t {
+    let log_cues = !cue_info.is_null()
+        && Hachimi::instance().config.load().replace_global_char.log_audio_cues;
+
+    if log_cues {
+        let info = unsafe { *cue_info };
+        debug!("[song] part={} sheet={} name='{}' id={} stop_type={}",
+            part, cue_str(info.CueSheetName), cue_str(info.CueName), info.CueId, stop_type);
+    }
+
+    let result = get_orig_fn!(PrepareSong, PrepareSongFn)(
+        this, part, cue_info, play_param, stop_type
+    );
+
+    if log_cues {
+        debug!("[song]   -> playback_id={} error={} src_index={} used_sheet={}",
+            result.criAtomExPlayback.id, result.isError, result.atomSourceListIndex,
+            cue_str(result.cueSheetName));
+    }
+
+    result
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, AudioManager);
 
     let play_internal_addr = get_method_addr(AudioManager, c"PlayInternal", 4);
     new_hook!(play_internal_addr, PlayInternal);
+
+    let prepare_song_addr = get_method_addr(AudioManager, c"_prepareSong", 4);
+    if prepare_song_addr != 0 {
+        new_hook!(prepare_song_addr, PrepareSong);
+    }
 
     unsafe {
         CLASS = AudioManager;
