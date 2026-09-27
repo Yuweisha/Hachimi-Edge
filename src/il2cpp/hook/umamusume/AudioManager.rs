@@ -392,8 +392,8 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
             music_id, names.len(), names.join(", "));
     }
 
-    let extra = extra_song_sheets(&names);
-    if extra.is_empty() {
+    let (replaced, changed) = replaced_song_sheets(&names);
+    if changed == 0 {
         return orig(this, music_id, sheets);
     }
 
@@ -402,21 +402,18 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
         return orig(this, music_id, sheets);
     };
 
-    let mut merged = names;
-    merged.extend(extra.iter().cloned());
-
     if log_cues {
-        debug!("[song] 连同 {} 条替换角色的人声轨一起加载: {}", extra.len(), extra.join(", "));
+        debug!("[song] 名单替换了 {} 条人声轨: {}", changed, replaced.join(", "));
     }
 
-    let array = Array::<*mut Il2CppString>::new(string_class, merged.len());
+    let array = Array::<*mut Il2CppString>::new(string_class, replaced.len());
     if array.this.is_null() {
         return orig(this, music_id, sheets);
     }
 
     unsafe {
         let slice = array.as_slice();
-        for (i, name) in merged.iter().enumerate() {
+        for (i, name) in replaced.iter().enumerate() {
             slice[i] = name.to_il2cpp_string();
         }
     }
@@ -430,38 +427,42 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
     ok
 }
 
-fn extra_song_sheets(names: &[String]) -> Vec<String> {
+///
+fn replaced_song_sheets(names: &[String]) -> (Vec<String>, usize) {
     let config = Hachimi::instance().config.load();
     let char_replace = &config.replace_global_char;
     if !char_replace.enable {
-        return Vec::new();
+        return (names.to_vec(), 0);
     }
 
     let force = char_replace.song_force_chara;
-    let mut extra: Vec<String> = Vec::new();
+    let mut replaced = Vec::with_capacity(names.len());
+    let mut changed = 0;
 
     for name in names {
-        let Some((chara_id, range)) = crate::core::voice_replace::chara_id_in(name) else {
-            continue;
-        };
-
-        let new_id = if force != 0 {
-            force
+        let target = if force != 0 {
+            match crate::core::voice_replace::chara_id_in(name) {
+                Some((chara_id, range)) if chara_id != force => {
+                    let mut new_name = name.clone();
+                    new_name.replace_range(range, &format!("{:04}", force));
+                    Some(new_name)
+                }
+                _ => None,
+            }
         } else {
-            crate::core::voice_replace::effective_char_id(chara_id)
+            crate::core::voice_replace::rewrite_cue_sheet_name(name)
         };
-        if new_id == chara_id {
-            continue;
-        }
 
-        let mut new_name = name.clone();
-        new_name.replace_range(range, &format!("{:04}", new_id));
-        if !names.contains(&new_name) && !extra.contains(&new_name) {
-            extra.push(new_name);
+        match target {
+            Some(target) => {
+                replaced.push(target);
+                changed += 1;
+            }
+            None => replaced.push(name.clone()),
         }
     }
 
-    extra
+    (replaced, changed)
 }
 
 pub fn init(umamusume: *const Il2CppImage) {
