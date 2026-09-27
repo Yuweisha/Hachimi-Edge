@@ -144,6 +144,16 @@ fn replace_char_controller(
         return false;
     }
 
+    if !char_replace.replace_in_cutscene
+        && matches!(
+            controller_type,
+            x if x == UmaControllerType::EventTimeline as i32
+                || x == UmaControllerType::CutIn as i32
+        )
+    {
+        return false;
+    }
+
     if *chara_id == 9001 && controller_type == UmaControllerType::HomeStand as i32 {
         return false;
     }
