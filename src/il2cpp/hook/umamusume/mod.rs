@@ -96,6 +96,7 @@ pub mod LiveTimelineKeyCameraPositionData;
 mod LiveTimelineKeyCameraLookAtData;
 #[cfg(target_os = "windows")]
 mod LiveTimelineKeyMultiCameraPositionData;
+mod CharacterBuildInfo;
 #[cfg(target_os = "windows")]
 mod CharacterObject;
 #[cfg(target_os = "windows")]
@@ -262,6 +263,7 @@ pub fn init() {
     SceneManager::init(image);
     LowResolutionCamera::init(image);
     TapEffectController::init(image);
+    CharacterBuildInfo::init(image);
 
     #[cfg(target_os = "windows")]
     {

@@ -4918,15 +4918,17 @@ struct ConfigEditor {
 enum ConfigEditorTab {
     General,
     Graphics,
-    Gameplay
+    Gameplay,
+    CharReplace
 }
 
 impl ConfigEditorTab {
-    fn display_list() -> [(ConfigEditorTab, Cow<'static, str>); 3] {
+    fn display_list() -> [(ConfigEditorTab, Cow<'static, str>); 4] {
         [
             (ConfigEditorTab::General, t!("config_editor.general_tab")),
             (ConfigEditorTab::Graphics, t!("config_editor.graphics_tab")),
-            (ConfigEditorTab::Gameplay, t!("config_editor.gameplay_tab"))
+            (ConfigEditorTab::Gameplay, t!("config_editor.gameplay_tab")),
+            (ConfigEditorTab::CharReplace, t!("config_editor.char_replace_tab"))
         ]
     }
 
@@ -4934,15 +4936,17 @@ impl ConfigEditorTab {
         match self {
             ConfigEditorTab::General => ConfigEditorTab::Graphics,
             ConfigEditorTab::Graphics => ConfigEditorTab::Gameplay,
-            ConfigEditorTab::Gameplay => ConfigEditorTab::General,
+            ConfigEditorTab::Gameplay => ConfigEditorTab::CharReplace,
+            ConfigEditorTab::CharReplace => ConfigEditorTab::General,
         }
     }
 
     fn prev(self) -> ConfigEditorTab {
         match self {
-            ConfigEditorTab::General => ConfigEditorTab::Gameplay,
+            ConfigEditorTab::General => ConfigEditorTab::CharReplace,
             ConfigEditorTab::Graphics => ConfigEditorTab::General,
             ConfigEditorTab::Gameplay => ConfigEditorTab::Graphics,
+            ConfigEditorTab::CharReplace => ConfigEditorTab::Gameplay,
         }
     }
 
@@ -4951,6 +4955,7 @@ impl ConfigEditorTab {
             ConfigEditorTab::General => 0,
             ConfigEditorTab::Graphics => 1,
             ConfigEditorTab::Gameplay => 2,
+            ConfigEditorTab::CharReplace => 3,
         }
     }
 
@@ -4959,6 +4964,7 @@ impl ConfigEditorTab {
             ConfigEditorTab::General => "body_scroll_general",
             ConfigEditorTab::Graphics => "body_scroll_graphics",
             ConfigEditorTab::Gameplay => "body_scroll_gameplay",
+            ConfigEditorTab::CharReplace => "body_scroll_char_replace",
         }
     }
 }
@@ -6288,11 +6294,68 @@ impl ConfigEditor {
         self.swipe_scroll_state_id = scroll_state_id_out;
     }
 
+    fn char_replace_page(&self, ui: &mut egui::Ui, config: &mut hachimi::Config, scale: f32) {
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+        let search = self.search_term.clone();
+        let cfg = &mut config.replace_global_char;
+
+        if !should_show_option(&search, &t!("config_editor.char_replace_tab")) {
+            return;
+        }
+
+        ui.label(t!("config_editor.char_replace_desc"));
+        ui.add_space(6.0);
+
+        ui.checkbox(&mut cfg.enable, t!("config_editor.char_replace_enable"));
+        ui.add_space(2.0);
+        ui.checkbox(&mut cfg.replace_universal, t!("config_editor.char_replace_universal"));
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(6.0);
+
+        if cfg.data.is_empty() {
+            ui.label(t!("config_editor.char_replace_empty"));
+            ui.add_space(4.0);
+        }
+
+        let mut remove_index: Option<usize> = None;
+        for (index, entry) in cfg.data.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(format!("#{}", index + 1));
+                ui.label(t!("config_editor.char_replace_orig"));
+                ui.add(egui::DragValue::new(&mut entry.orig_char_id).speed(1.0).range(0..=99999).fixed_decimals(0));
+                ui.label("\u{f061}");
+                ui.label(t!("config_editor.char_replace_new"));
+                ui.add(egui::DragValue::new(&mut entry.new_char_id).speed(1.0).range(0..=99999).fixed_decimals(0));
+                ui.label(t!("config_editor.char_replace_cloth"));
+                ui.add(egui::DragValue::new(&mut entry.new_cloth_id).speed(1.0).range(0..=999999).fixed_decimals(0));
+                ui.checkbox(&mut entry.replace_mini, t!("config_editor.char_replace_mini"));
+                if ui.button("\u{f00d}").clicked() {
+                    remove_index = Some(index);
+                }
+            });
+            ui.add_space(2.0 * scale);
+        }
+
+        if let Some(index) = remove_index {
+            cfg.data.remove(index);
+        }
+
+        ui.add_space(6.0);
+        if ui.button(t!("config_editor.char_replace_add")).clicked() {
+            cfg.data.push(hachimi::GlobalCharReplaceEntry::default());
+        }
+    }
+
     fn options_page(&self, ui: &mut egui::Ui, config: &mut hachimi::Config, tab: ConfigEditorTab, scale: f32, column_spacing: f32) {
         ui.set_width(ui.available_width());
         egui::Frame::NONE
         .inner_margin(egui::Margin::symmetric(8, 0))
         .show(ui, |ui| {
+            if tab == ConfigEditorTab::CharReplace {
+                self.char_replace_page(ui, config, scale);
+                return;
+            }
             let label_w = ui.available_width() * 0.47;
             let grid_id = self.id.with("options_grid").with(tab.index() as u32).with(label_w.round() as i32);
             let avail = ui.available_width();
