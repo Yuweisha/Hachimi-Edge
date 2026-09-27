@@ -301,17 +301,55 @@ pub fn init(umamusume: *const Il2CppImage) {
         if Hachimi::instance().config.load().debug_mode {
             let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
             let mut names: Vec<String> = Vec::new();
+            let mut song_apis: Vec<String> = Vec::new();
+
             loop {
                 let method = crate::il2cpp::api::il2cpp_class_get_methods(AudioManager, &mut iter);
                 if method.is_null() { break; }
-                if (*method).is_generic() == 0 {
-                    names.push(
-                        std::ffi::CStr::from_ptr((*method).name).to_string_lossy().to_string()
+                if (*method).is_generic() != 0 { continue; }
+
+                let name = std::ffi::CStr::from_ptr((*method).name)
+                    .to_string_lossy()
+                    .to_string();
+
+                if name.contains("Song") || name == "PrepareCharaPlaybacks" {
+                    let type_name = |ty: *const crate::il2cpp::types::Il2CppType| -> String {
+                        if ty.is_null() {
+                            "?".to_string()
+                        } else {
+                            let p = crate::il2cpp::api::il2cpp_type_get_name(ty);
+                            if p.is_null() {
+                                "?".to_string()
+                            } else {
+                                std::ffi::CStr::from_ptr(p).to_string_lossy().to_string()
+                            }
+                        }
+                    };
+
+                    let count = crate::il2cpp::api::il2cpp_method_get_param_count(method);
+                    let mut params = Vec::new();
+                    for i in 0..count {
+                        params.push(type_name(
+                            crate::il2cpp::api::il2cpp_method_get_param(method, i)
+                        ));
+                    }
+                    let ret = type_name(
+                        crate::il2cpp::api::il2cpp_method_get_return_type(method)
                     );
+                    song_apis.push(format!(
+                        "{}({}) -> {}", name, params.join(", "), ret
+                    ));
                 }
+
+                names.push(name);
             }
+
             names.sort();
+            song_apis.sort();
             debug!("[am] AudioManager methods ({}): {}", names.len(), names.join(", "));
+            for api in song_apis {
+                debug!("[am] song api: {}", api);
+            }
         }
     }
 }
