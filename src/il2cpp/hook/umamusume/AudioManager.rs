@@ -171,7 +171,7 @@ pub struct RequestCueInfo {
 }
 
 // Cute.Cri SoundGroup
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(i32)]
 pub enum SoundGroup {
     Bgm = 0,
@@ -186,17 +186,21 @@ type PlayInternalFn = extern "C" fn(this: *mut Il2CppObject, group: SoundGroup,
 extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
     cue_info: *mut RequestCueInfo, play_param: *mut Il2CppObject, stop_type: i32
 ) -> AudioPlayback_t {
-    if !cue_info.is_null() && Hachimi::instance().config.load().replace_global_char.log_audio_cues {
+    let log_cues = !cue_info.is_null()
+        && Hachimi::instance().config.load().replace_global_char.log_audio_cues;
+    let to_str = |p: *mut Il2CppString| {
+        if p.is_null() {
+            String::new()
+        } else {
+            unsafe { &*p }.as_utf16str().to_string()
+        }
+    };
+
+    if log_cues {
         let info = unsafe { *cue_info };
-        let to_str = |p: *mut Il2CppString| {
-            if p.is_null() {
-                String::new()
-            } else {
-                unsafe { &*p }.as_utf16str().to_string()
-            }
-        };
-        debug!("[cue] group={} cue_sheet={} cue_name={} cue_id={}",
-            group as i32, to_str(info.CueSheetName), to_str(info.CueName), info.CueId);
+        debug!("[cue] group={:?}({}) sheet={} name='{}' id={} stop_type={}",
+            group, group as i32, to_str(info.CueSheetName), to_str(info.CueName),
+            info.CueId, stop_type);
     }
 
     if group == SoundGroup::Voice && !cue_info.is_null() {
@@ -207,6 +211,24 @@ extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
     }
 
     let result = get_orig_fn!(PlayInternal, PlayInternalFn)(this, group, cue_info, play_param, stop_type);
+
+    if log_cues {
+        debug!("[cue]   -> playback_id={} error={} src_index={} used_sheet={}",
+            result.criAtomExPlayback.id, result.isError, result.atomSourceListIndex,
+            to_str(result.cueSheetName));
+
+        if group == SoundGroup::Bgm {
+            let song = get__songPlayback(this);
+            let charas = get__songCharaPlaybacks(this);
+            let count = if charas.is_null() {
+                0
+            } else {
+                Array::<*mut Il2CppObject>::from(charas).len()
+            };
+            debug!("[cue]   songPlayback.id={} songCharaPlaybacks.len={}",
+                song.criAtomExPlayback.id, count);
+        }
+    }
 
     if group == SoundGroup::Voice && !cue_info.is_null() && Hachimi::instance().config.load().caption.caption_enable {
         let cue_sheet_ptr = unsafe { *cue_info }.CueSheetName;
