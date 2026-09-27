@@ -186,6 +186,19 @@ type PlayInternalFn = extern "C" fn(this: *mut Il2CppObject, group: SoundGroup,
 extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
     cue_info: *mut RequestCueInfo, play_param: *mut Il2CppObject, stop_type: i32
 ) -> AudioPlayback_t {
+    if !cue_info.is_null() && Hachimi::instance().config.load().replace_global_char.log_audio_cues {
+        let info = unsafe { *cue_info };
+        let to_str = |p: *mut Il2CppString| {
+            if p.is_null() {
+                String::new()
+            } else {
+                unsafe { &*p }.as_utf16str().to_string()
+            }
+        };
+        debug!("[cue] group={} cue_sheet={} cue_name={} cue_id={}",
+            group as i32, to_str(info.CueSheetName), to_str(info.CueName), info.CueId);
+    }
+
     if group == SoundGroup::Voice && !cue_info.is_null() {
         let new_sheet = crate::core::voice_replace::rewrite_cue_sheet(unsafe { *cue_info }.CueSheetName);
         if let Some(new_sheet) = new_sheet {

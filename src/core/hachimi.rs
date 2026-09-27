@@ -759,6 +759,8 @@ pub struct GlobalCharReplaceConfig {
     #[serde(default = "Config::default_true")]
     pub replace_universal: bool,
     #[serde(default)]
+    pub log_audio_cues: bool,
+    #[serde(default)]
     pub data: Vec<GlobalCharReplaceEntry>,
 }
 
@@ -767,6 +769,7 @@ impl Default for GlobalCharReplaceConfig {
         Self {
             enable: false,
             replace_universal: true,
+            log_audio_cues: false,
             data: Vec::new(),
         }
     }
