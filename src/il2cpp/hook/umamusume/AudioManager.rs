@@ -299,6 +299,15 @@ extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
             part, cue_str(info.CueSheetName), cue_str(info.CueName), info.CueId, stop_type);
     }
 
+    if !cue_info.is_null() {
+        let new_sheet = crate::core::voice_replace::rewrite_cue_sheet(
+            unsafe { *cue_info }.CueSheetName
+        );
+        if let Some(new_sheet) = new_sheet {
+            unsafe { (*cue_info).CueSheetName = new_sheet; }
+        }
+    }
+
     let result = get_orig_fn!(PrepareSong, PrepareSongFn)(
         this, part, cue_info, play_param, stop_type
     );

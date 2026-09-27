@@ -122,6 +122,17 @@ pub fn text_for(chara_id: i32, voice_id: i32) -> Option<*mut Il2CppString> {
 }
 
 fn chara_id_in(sheet: &str) -> Option<(i32, Range<usize>)> {
+    if let Some(at) = sheet.rfind("_chara_") {
+        let start = at + "_chara_".len();
+        if let Some(head) = sheet.get(start..start + 4) {
+            if let Ok(chara_id) = head.parse::<i32>() {
+                if (CHARA_ID_MIN..=CHARA_ID_MAX).contains(&chara_id) {
+                    return Some((chara_id, start..start + 4));
+                }
+            }
+        }
+    }
+
     let start = sheet.rfind('_').map(|index| index + 1).unwrap_or(0);
     let segment = &sheet[start..];
     if segment.len() < 4 {
@@ -157,6 +168,11 @@ mod tests {
         assert_eq!(parse("snd_voi_outgame_102901"), Some(1029));
         assert_eq!(parse("snd_voi_title_1053"), Some(1053));
         assert_eq!(parse("snd_voi_tc_1053"), Some(1053));
+
+        assert_eq!(parse("1157/snd_bgm_live_1157_chara_1003_01"), Some(1003));
+        assert_eq!(parse("1157/snd_bgm_live_1157_chara_1022_01"), Some(1022));
+        assert_eq!(parse("1157/snd_bgm_live_1157_oke_01"), None);
+        assert_eq!(parse("1157/snd_bgm_live_1157_preview_02"), None);
     }
 
     #[test]
