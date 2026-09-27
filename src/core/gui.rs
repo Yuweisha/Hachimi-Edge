@@ -5074,7 +5074,7 @@ impl ConfigEditor {
 
     fn dress_combo_items(&self, entries: &[(i32, i32, String)], chara_id: i32, current: i32) -> Vec<(i32, String)> {
         let localized = Hachimi::instance().localized_data.load();
-        let localized_dress = localized.text_data_dict.get(&5);
+        let localized_dress = localized.text_data_dict.get(&14);
 
         let mut items: Vec<(i32, String)> = entries.iter()
             .filter(|(_, entry_chara_id, _)| chara_id <= 0 || *entry_chara_id == 0 || *entry_chara_id == chara_id)
@@ -5097,7 +5097,16 @@ impl ConfigEditor {
 
         // Make sure the value already stored in the config stays selectable.
         if current != 0 && !items.iter().any(|(dress_id, _)| *dress_id == current) {
-            items.insert(0, (current, format!("{current}")));
+            let table_name = entries.iter()
+                .find(|(dress_id, _, _)| *dress_id == current)
+                .map(|(_, _, name)| name.as_str())
+                .unwrap_or("");
+            let label = match localized_dress.and_then(|dict| dict.get(&current)) {
+                Some(name) => format!("{current} {name}"),
+                None if !table_name.is_empty() => format!("{current} {table_name}"),
+                None => format!("{current}"),
+            };
+            items.insert(0, (current, label));
         }
         items.sort_by_key(|(dress_id, _)| *dress_id);
         items
@@ -6417,10 +6426,12 @@ impl ConfigEditor {
                     &dress_items,
                     &mut self.char_replace_search.lock().unwrap()
                 );
-                ui.checkbox(&mut entry.replace_mini, t!("config_editor.char_replace_mini"));
-                if ui.button(t!("config_editor.char_replace_delete")).clicked() {
-                    remove_index = Some(index);
-                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(t!("config_editor.char_replace_delete")).clicked() {
+                        remove_index = Some(index);
+                    }
+                    ui.checkbox(&mut entry.replace_mini, t!("config_editor.char_replace_mini"));
+                });
             });
             ui.add_space(4.0 * scale);
         }

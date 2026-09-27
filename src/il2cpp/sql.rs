@@ -1210,7 +1210,7 @@ pub fn get_dress_have_mini(dress_id: i32) -> bool {
 }
 
 /// Every dress in master.mdb as `(dress id, chara id, dress name)`, the name
-/// coming from text_data category 5 and left empty when there is none.
+/// coming from text_data category 14 and left empty when there is none.
 pub fn get_all_dress_entries() -> Vec<(i32, i32, String)> {
     let mut items = Vec::new();
     let db_path = get_masterdb_path();
