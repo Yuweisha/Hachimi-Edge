@@ -55,6 +55,26 @@ def_method_wrapper_fn!(GetVolume, GET_VOLUME_ADDR, f32, category: Category);
 
 def_method_wrapper_fn!(IsAvailableCueSheet, IS_AVAILABLE_CUE_SHEET_ADDR, bool, this: *mut Il2CppObject, cue_sheet: *mut Il2CppString);
 
+static mut ADD_CUE_BY_NAME_ADDR: usize = 0;
+
+///
+///
+pub fn load_cue_sheet(cue_name: &str) -> bool {
+    if unsafe { ADD_CUE_BY_NAME_ADDR } == 0 {
+        return false;
+    }
+    let manager = instance();
+    if manager.is_null() {
+        return false;
+    }
+    let cue = cue_name.to_il2cpp_string();
+    if cue.is_null() {
+        return false;
+    }
+    let orig = get_orig_fn!(AddCueSheetByCueName, AddCueSheetByCueNameFn);
+    !orig(manager, cue).is_null()
+}
+
 ///
 ///
 pub fn cue_sheet_available(sheet: &str) -> bool {
@@ -501,6 +521,7 @@ pub fn init(umamusume: *const Il2CppImage) {
     }
 
     let add_cue_by_name_addr = get_method_addr(AudioManager, c"AddCueSheetByCueName", 1);
+    unsafe { ADD_CUE_BY_NAME_ADDR = add_cue_by_name_addr; }
     if add_cue_by_name_addr != 0 {
         new_hook!(add_cue_by_name_addr, AddCueSheetByCueName);
     }
