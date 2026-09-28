@@ -165,7 +165,6 @@ config_editor:
   char_replace_cloth: "Dress"
   char_replace_mini: "Replace mini character"
   char_replace_delete: "Delete rule"
-  char_replace_log_cues: "Log every audio cue (diagnostics)"
   char_replace_empty: "No replacement rules yet."
   char_replace_add: "\uf067 Add rule"
   language: "Language"
