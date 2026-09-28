@@ -55,7 +55,7 @@ fn setup_version_env() {
         println!("cargo:warning=Failed to execute git. Is git installed?");
     }
 
-    version_str.push_str("-cr");
+    version_str.push_str("-bv");
     println!("cargo:rustc-env=HACHIMI_DISPLAY_VERSION={}", version_str);
 }
 
