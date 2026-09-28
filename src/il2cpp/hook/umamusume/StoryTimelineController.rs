@@ -1,9 +1,7 @@
 use std::sync::{atomic::{self, AtomicI32}, Mutex};
 
 use crate::{core::Hachimi, il2cpp::{
-    api::il2cpp_class_get_name,
-    ext::Il2CppObjectExt,
-    symbols::{get_field_object_value, get_method_addr, FieldsIter, GCHandle, IList},
+    symbols::{get_method_addr, GCHandle},
     types::*,
 }};
 
@@ -31,47 +29,7 @@ pub extern "C" fn GotoBlock(this: *mut Il2CppObject, block_id: i32, weaken_cy_sp
         LAST_BLOCK_ID.store(block_id, atomic::Ordering::Relaxed);
     }
 
-    if Hachimi::instance().config.load().debug_mode {
-        static DUMPED: AtomicI32 = AtomicI32::new(0);
-        if DUMPED.fetch_add(1, atomic::Ordering::Relaxed) < 4 {
-            dump_chara_tracks(get_TimelineData(this), block_id);
-        }
-    }
-
     get_orig_fn!(GotoBlock, GotoBlockFn)(this, block_id, weaken_cy_spring, is_update, is_choice);
-}
-
-fn class_name(class: *mut Il2CppClass) -> String {
-    unsafe { std::ffi::CStr::from_ptr(il2cpp_class_get_name(class)).to_string_lossy().into_owned() }
-}
-
-pub fn dump_chara_tracks(timeline_data: *mut Il2CppObject, block_id: i32) {
-    let block_list = super::StoryTimelineData::get_BlockList(timeline_data);
-    let Some(block_list) = <IList>::new(block_list) else { return };
-    let Some(block_data) = block_list.get(block_id) else { return };
-
-    let chara_tracks = super::StoryTimelineBlockData::get_CharacterTrackList(block_data);
-    let Some(chara_tracks) = <IList>::new(chara_tracks) else {
-        info!("[storydump] block {} 没有角色轨道", block_id);
-        return;
-    };
-
-    info!("[storydump] block={} 角色轨道数={}", block_id, chara_tracks.count());
-    for (i, chara_track) in chara_tracks.iter().enumerate() {
-        unsafe {
-            let class = (*chara_track).klass();
-            info!("[storydump]   track[{}] class={}", i, class_name(class));
-            for field in FieldsIter::new(class) {
-                let fname = std::ffi::CStr::from_ptr((*field).name).to_string_lossy().into_owned();
-                let value = get_field_object_value::<Il2CppObject>(chara_track, field);
-                if value.is_null() {
-                    continue;
-                }
-                let vclass = (*value).klass();
-                info!("[storydump]     {} = <{} @{:?}>", fname, class_name(vclass), value);
-            }
-        }
-    }
 }
 
 pub fn init(umamusume: *const Il2CppImage) {

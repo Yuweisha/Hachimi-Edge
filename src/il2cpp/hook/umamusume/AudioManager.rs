@@ -236,17 +236,6 @@ type PlayInternalFn = extern "C" fn(this: *mut Il2CppObject, group: SoundGroup,
 extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
     cue_info: *mut RequestCueInfo, play_param: *mut Il2CppObject, stop_type: i32
 ) -> AudioPlayback_t {
-    let log_cues = !cue_info.is_null()
-        && Hachimi::instance().config.load().replace_global_char.log_audio_cues;
-    let to_str = cue_str;
-
-    if log_cues {
-        let info = unsafe { *cue_info };
-        debug!("[cue] group={:?}({}) sheet={} name='{}' id={} stop_type={}",
-            group, group as i32, to_str(info.CueSheetName), to_str(info.CueName),
-            info.CueId, stop_type);
-    }
-
     if group == SoundGroup::Voice && !cue_info.is_null() {
         let new_sheet = crate::core::voice_replace::rewrite_cue_sheet(unsafe { *cue_info }.CueSheetName);
         if let Some(new_sheet) = new_sheet {
@@ -255,24 +244,6 @@ extern "C" fn PlayInternal(this: *mut Il2CppObject, group: SoundGroup,
     }
 
     let result = get_orig_fn!(PlayInternal, PlayInternalFn)(this, group, cue_info, play_param, stop_type);
-
-    if log_cues {
-        debug!("[cue]   -> playback_id={} error={} src_index={} used_sheet={}",
-            result.criAtomExPlayback.id, result.isError, result.atomSourceListIndex,
-            to_str(result.cueSheetName));
-
-        if group == SoundGroup::Bgm {
-            let song = get__songPlayback(this);
-            let charas = get__songCharaPlaybacks(this);
-            let count = if charas.is_null() {
-                0
-            } else {
-                Array::<*mut Il2CppObject>::from(charas).len()
-            };
-            debug!("[cue]   songPlayback.id={} songCharaPlaybacks.len={}",
-                song.criAtomExPlayback.id, count);
-        }
-    }
 
     if group == SoundGroup::Voice && !cue_info.is_null() && Hachimi::instance().config.load().caption.caption_enable {
         let cue_sheet_ptr = unsafe { *cue_info }.CueSheetName;
@@ -332,15 +303,6 @@ type PrepareSongFn = extern "C" fn(this: *mut Il2CppObject, part: i32,
 extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
     cue_info: *mut RequestCueInfo, play_param: *mut Il2CppObject, stop_type: i32
 ) -> AudioPlayback_t {
-    let log_cues = !cue_info.is_null()
-        && Hachimi::instance().config.load().replace_global_char.log_audio_cues;
-
-    if log_cues {
-        let info = unsafe { *cue_info };
-        debug!("[song] part={} sheet={} name='{}' id={} stop_type={}",
-            part, cue_str(info.CueSheetName), cue_str(info.CueName), info.CueId, stop_type);
-    }
-
     if !cue_info.is_null() {
         let force = Hachimi::instance().config.load().replace_global_char.song_force_chara;
         let new_sheet = if force != 0 {
@@ -361,12 +323,6 @@ extern "C" fn PrepareSong(this: *mut Il2CppObject, part: i32,
         this, part, cue_info, play_param, stop_type
     );
 
-    if log_cues {
-        debug!("[song]   -> playback_id={} error={} src_index={} used_sheet={}",
-            result.criAtomExPlayback.id, result.isError, result.atomSourceListIndex,
-            cue_str(result.cueSheetName));
-    }
-
     result
 }
 
@@ -379,27 +335,13 @@ extern "C" fn AddCueSheetByCueName(this: *mut Il2CppObject,
     cue_name: *mut Il2CppString
 ) -> *mut Il2CppObject {
     let orig = get_orig_fn!(AddCueSheetByCueName, AddCueSheetByCueNameFn);
-    let log_cues = Hachimi::instance().config.load().replace_global_char.log_audio_cues;
-
     let name = cue_str(cue_name);
     let result = orig(this, cue_name);
 
-    if log_cues && name.contains("live") {
-        debug!("[song] AddCueSheetByCueName('{}') -> {}",
-            name, if result.is_null() { "null" } else { "ok" });
-    }
-
     if let Some(target) = crate::core::voice_replace::rewrite_cue_sheet_name(&name) {
-        if log_cues {
-            debug!("[song]   顺带加载替换目标: {}", target);
-        }
         let ptr = target.to_il2cpp_string();
         if !ptr.is_null() {
-            let added = orig(this, ptr);
-            if log_cues {
-                debug!("[song]   替换目标加载结果: {}",
-                    if added.is_null() { "null（资源不存在）" } else { "ok" });
-            }
+            orig(this, ptr);
         }
     }
 
@@ -415,8 +357,6 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
     sheets: *mut Il2CppArray
 ) -> bool {
     let orig = get_orig_fn!(AddSongCueSheet, AddSongCueSheetFn);
-    let log_cues = Hachimi::instance().config.load().replace_global_char.log_audio_cues;
-
     let names: Vec<String> = if sheets.is_null() {
         Vec::new()
     } else {
@@ -425,11 +365,6 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
             .map(|item| cue_str(*item))
             .collect()
     };
-
-    if log_cues {
-        debug!("[song] AddSongCueSheet(music_id={}, {} 条): {}",
-            music_id, names.len(), names.join(", "));
-    }
 
     let (replaced, changed) = replaced_song_sheets(&names);
     if changed == 0 {
@@ -440,10 +375,6 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
     let Ok(string_class) = get_class(mscorlib, c"System", c"String") else {
         return orig(this, music_id, sheets);
     };
-
-    if log_cues {
-        debug!("[song] 名单替换了 {} 条人声轨: {}", changed, replaced.join(", "));
-    }
 
     let array = Array::<*mut Il2CppString>::new(string_class, replaced.len());
     if array.this.is_null() {
@@ -458,10 +389,6 @@ extern "C" fn AddSongCueSheet(this: *mut Il2CppObject, music_id: i32,
     }
 
     let ok = orig(this, music_id, array.this);
-
-    if log_cues {
-        debug!("[song] 合并列表加载结果: {}", ok);
-    }
 
     ok
 }

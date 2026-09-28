@@ -6505,8 +6505,6 @@ impl ConfigEditor {
         ui.add_space(2.0);
         ui.checkbox(&mut cfg.replace_in_cutscene, t!("config_editor.char_replace_cutscene"));
         ui.add_space(2.0);
-        ui.checkbox(&mut cfg.log_audio_cues, t!("config_editor.char_replace_log_cues"));
-        ui.add_space(8.0);
         ui.separator();
         ui.add_space(6.0);
 

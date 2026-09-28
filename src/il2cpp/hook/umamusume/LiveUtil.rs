@@ -12,7 +12,7 @@ extern "C" fn GetSingCharaIdList(songId: i32, songPartNumber: i32, allCharaIdArr
 
     if songId > 0 {
         unsafe {
-            for (array, is_vocal) in [(vocalCharaIdArray, true), (allCharaIdArray, false)] {
+            for array in [vocalCharaIdArray, allCharaIdArray] {
                 if array.is_null() {
                     continue;
                 }
@@ -34,9 +34,6 @@ extern "C" fn GetSingCharaIdList(songId: i32, songPartNumber: i32, allCharaIdArr
 
                     if new_id != orig {
                         *data_ptr.add(i) = new_id;
-                        if replace.log_audio_cues && is_vocal {
-                            debug!("[song] 演唱者 {}: {} -> {}", i, orig, new_id);
-                        }
                     }
                 }
             }
