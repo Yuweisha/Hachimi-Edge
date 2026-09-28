@@ -214,7 +214,13 @@ extern "C" fn GetRaceDressId(this: *mut Il2CppObject, _is_apply_dress_change: bo
         let mut new_dress_id = ret;
         let mut new_head_id = 0;
         if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32, true) {
-            return new_dress_id;
+            if dress_belongs_to(new_dress_id, chara_id) {
+                return new_dress_id;
+            }
+            debug!(
+                "[replace] GetRaceDressId: dress {} 不属于角色 {}，保留原值 {}",
+                new_dress_id, chara_id, ret
+            );
         }
     }
 
