@@ -13,7 +13,6 @@ on:
 permissions:
   contents: write
   id-token: write
-  attestations: write
 
 jobs:
   build:
@@ -66,14 +65,6 @@ jobs:
           RELEASE=1 ./tools/android/build.sh
         env:
           HACHIMI_IGNORE_DIRTY: "true"
-
-      - name: Attest Android
-        if: matrix.target == 'aarch64-linux-android'
-        uses: actions/attest@v4
-        with:
-          subject-path: |
-            build/*.so
-            build/sha256.json
 
 ############### WINDOWS ##################
 
@@ -160,15 +151,6 @@ jobs:
             "hachimi_installer.exe": "$EXE_HASH"
           }
           EOF
-
-      - name: Attest Windows
-        if: matrix.target == 'x86_64-pc-windows-msvc'
-        uses: actions/attest@v4
-        with:
-          subject-path: |
-            build/blake3.json
-            build/hachimi.dll
-            build/hachimi_installer.exe
 
 ############### ARTIFACTS ##################
 
