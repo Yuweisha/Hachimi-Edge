@@ -193,7 +193,7 @@ jobs:
           EXPECTED="$RELEASE_VERSION"
           TAG="${{ github.event.inputs.version || github.ref_name }}"
           case "$TAG" in
-            "$EXPECTED"|"$EXPECTED"-*)
+            "$EXPECTED"|"$EXPECTED"-*|"$EXPECTED".*)
               echo "版本一致：$TAG（基准 $EXPECTED）"
               ;;
             *)
