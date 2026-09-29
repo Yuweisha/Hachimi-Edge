@@ -763,6 +763,8 @@ pub struct GlobalCharReplaceConfig {
     ///
     #[serde(default)]
     pub replace_in_cutscene: bool,
+    #[serde(default = "Config::default_true")]
+    pub auto_dress: bool,
     #[serde(default)]
     pub data: Vec<GlobalCharReplaceEntry>,
 }
@@ -774,6 +776,7 @@ impl Default for GlobalCharReplaceConfig {
             replace_universal: true,
             song_force_chara: 0,
             replace_in_cutscene: false,
+            auto_dress: true,
             data: Vec::new(),
         }
     }

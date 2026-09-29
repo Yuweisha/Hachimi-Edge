@@ -6503,6 +6503,8 @@ impl ConfigEditor {
         ui.add_space(2.0);
         ui.checkbox(&mut cfg.replace_universal, t!("config_editor.char_replace_universal"));
         ui.add_space(2.0);
+        ui.checkbox(&mut cfg.auto_dress, t!("config_editor.char_replace_auto_dress"));
+        ui.add_space(2.0);
         ui.checkbox(&mut cfg.replace_in_cutscene, t!("config_editor.char_replace_cutscene"));
         ui.add_space(2.0);
         ui.separator();

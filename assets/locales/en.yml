@@ -160,6 +160,7 @@ config_editor:
   char_replace_enable: "Enable character replacement"
   char_replace_cutscene: "Replace in cutscenes as well"
   char_replace_universal: "Replace dress as well"
+  char_replace_auto_dress: "Auto-fit dress to training"
   char_replace_orig: "Original"
   char_replace_new: "New chara"
   char_replace_cloth: "Dress"

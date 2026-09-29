@@ -112,6 +112,7 @@ config_editor:
   char_replace_enable: "啟用角色替換"
   char_replace_cutscene: "過場動畫中也替換角色"
   char_replace_universal: "同時替換服裝"
+  char_replace_auto_dress: "育成服裝自適應"
   char_replace_orig: "原角色"
   char_replace_new: "新角色"
   char_replace_cloth: "服裝"
