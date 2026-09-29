@@ -75,6 +75,34 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
+fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
+    if orig_dress_id < 100000 {
+        return orig_dress_id;
+    }
+
+    let want_head_sub = sql::get_head_id_from_dress_id(orig_dress_id);
+
+    if want_head_sub == 0 && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id {
+        return preferred_dress_id;
+    }
+
+    let base = target_chara_id * 100;
+
+    if let Some(d) = (base..base + 100).find(|d| {
+        sql::get_dress_chara_id(*d) == target_chara_id
+            && sql::get_head_id_from_dress_id(*d) == want_head_sub
+    }) {
+        return d;
+    }
+
+    let fallback = base + 1;
+    if sql::get_dress_info(fallback).is_some() {
+        return fallback;
+    }
+
+    orig_dress_id
+}
+
 static DRESS_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
 
 fn dress_table_ready() -> bool {
@@ -110,7 +138,7 @@ fn replace_char_controller(
         return false;
     }
 
-    if !char_replace.replace_universal && *dress_id < 100000 {
+    if !char_replace.replace_universal && !char_replace.auto_dress && *dress_id < 100000 {
         return false;
     }
 
@@ -161,7 +189,11 @@ fn replace_char_controller(
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
         let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
-        *dress_id = new_dress_id;
+        *dress_id = if char_replace.auto_dress {
+            auto_pick_dress(orig.1, new_chara_id, new_dress_id)
+        } else {
+            new_dress_id
+        };
         align_dress_with_chara(dress_id, new_chara_id);
         *head_id = sql::get_head_id_from_dress_id(*dress_id);
         debug!(
