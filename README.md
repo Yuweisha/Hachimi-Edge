@@ -17,7 +17,7 @@
 1. 替换出原不可育成角色后进入育成若启用同时替换过场动画开关游戏会崩溃或软死
 2. 当角色替换开启后育成中出现专属动作时有概率软死或崩溃
 3. 部分live有特殊演出时（LegendChanger、浪漫汤驹）启用了角色替换，默认音轨会换（如果有），但是特殊演出部分不会改变「目前没有思路修」
-4.本分支含部分vivicoded（AI辅助编写），介意请勿使用，各个功能已经过本人本地环境测试无异常后提交release，若发现bug请开issue并附带日志
+4. 本分支含部分vivicoded（AI辅助编写），介意请勿使用，各个功能已经过本人本地环境测试无异常后提交release，若发现bug请开issue并附带日志
 
 [![Discord 服务器](https://dcbadge.limes.pink/api/server/https://discord.gg/YjBgmuqqYr)](https://discord.gg/YjBgmuqqYr)
 
