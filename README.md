@@ -1,51 +1,66 @@
 <img align="left" width="80" height="80" src="assets/icon.png">
 
 # Hachimi Edge
+[繁體中文](README-zh_tw.md)
 
-English | [简体中文](README-zh_cn.md) | [繁體中文](README-zh_tw.md)
+# 本分支仅面向中文用户提供完整支援
+# This branch is only full supported in chinese language.
 
-[![Discord server](https://dcbadge.limes.pink/api/server/https://discord.gg/YjBgmuqqYr)](https://discord.gg/YjBgmuqqYr)
+# 与上游仓库和版本有什么区别？
 
-Game enhancement and translation mod for UM:PD.
+1. 来自上游的提交会完全同步到本分支
+2. 本分支提供独立功能：角色替换+声线替换
+3. 上述功能目前已实现：角色完全替换（选择替换没有迷你角色的情况下会开启替换迷你角色游戏会卡死或崩溃）,声线完全替换（包括live声线和育成声线，育成声线会修改对应翻译「如果有」。
+
+# 已知问题
+
+1. 替换出原不可育成角色后进入育成若启用同时替换过场动画开关游戏会崩溃或软死
+2. 当角色替换开启后育成中出现专属动作时有概率软死或崩溃
+3. 部分live有特殊演出时（LegendChanger、浪漫汤驹）启用了角色替换，默认音轨会换（如果有），但是特殊演出部分不会改变「目前没有思路修」
+4. 本分支含部分vivicoded（AI辅助编写），介意请勿使用，各个功能已经过本人本地环境测试无异常后提交release，若发现bug请开issue并附带日志
+
+[![Discord 服务器](https://dcbadge.limes.pink/api/server/https://discord.gg/YjBgmuqqYr)](https://discord.gg/YjBgmuqqYr)
+
+某赛马拟人化游戏的游戏增强与翻译插件。
 
 <img width="100%" height="100%" src="assets/screenshot-1.png">
 <img width="100%" height="100%" src="assets/screenshot-2.png">
 
-# ⚠️ Please don't link to this repo or Hachimi's website
-We understand that you want to help people install Hachimi and have a better experience playing the game. However, this project is inherently against the game's TOS and The Game Developer most definitely wants it gone if they were ever to learn about it.
+# ⚠️ 请不要分享这个仓库与 Hachimi 网站的相关链接
+我们非常理解您希望帮助别人安装 Hachimi 来与其获得更好的游戏体验。但是，此项目本质上违反了游戏的服务条款，如果被游戏的开发商得知，他们肯定会希望这个项目灰飞烟灭。
 
-While sharing in your self-managed chat services and through private messaging is fine, we humbly ask that you refrain from sharing links to this project on public facing sites, or to any of the tools involved.
+您可以私下与别人分享，这完全没有问题，但是我们请求您不要在公开的网站上分享此项目的相关链接，也不要分享任何相关工具的链接。
 
-Or share them and ruin it for the dozens of Hachimi users. It's up to you.
+如果进行分享宣传，这可能会破坏很多 Hachimi 用户的体验，请三思而后行。
 
-### If you're going to share it anyways
-Do what you must, but we would respectfully request that you try to label the game as "UM:PD" or "The Honse Game" instead of the actual name of the game, to avoid search engine parsing.
+### 如果您执意要分享
+我们无法改变您的想法，但我们建议您在提及游戏本体时，使用 “UM:PD” 或 “某赛马拟人化游戏” 等隐语去代替游戏名字，这样能避免被搜索引擎剖析到。
 
-# Features
-- **High quality translations:** Hachimi comes with advanced translation features that help translations feel more natural (plural forms, ordinal numbers, etc.) and prevent introducing jank to the UI. It also supports translating most in-game components; no manual assets patching needed!
+# 功能特性
+- **高质量翻译：** 内置先进的翻译功能系统，支持复数形式、序数词等自然语言特性，避免界面异常。支持自动翻译绝大多数游戏组件，无需手动修改资源文件！
 
-    Supported components:
-    - UI text
-    - master.mdb (skill name, skill desc, etc.)
-    - Race story
-    - Main story/Home dialog
-    - Lyrics
-    - Texture replacement
-    - Sprite atlas replacement
+    已支持组件：
+    - 界面文本
+    - master.mdb（技能名称、技能描述等）
+    - 赛事剧情
+    - 主线剧情/育成对话
+    - 歌词
+    - 纹理替换
+    - 图集替换
 
-    Additionally, Hachimi does not provide translation features for only a single language; it has been designed to be fully configurable for any language.
+    此外，Hachimi 并非单一语言专属翻译工具，其架构设计支持任意语言的完整适配。
 
-- **Easy setup:** Just plug and play. All setup is done within the game itself, no external application needed.
-- **Translation auto update:** Built-in translation updater lets you play the game as normal while it updates, and reloads it in-game when it's done, no restart needed!
-- **Built-in GUI:** Comes with a config editor so you can modify settings without even exiting the game!
-- **Graphics settings:** You can adjust the game's graphics settings to make full use of your device's specs, such as FPS unlocking and resolution scaling.
-- **Cross-platform:** Designed from the ground up to be portable, with Windows and Android support.
+- **便捷安装：** 安装即用。所有配置均在游戏内完成，无需外部程序。
+- **翻译自动更新：** 内置更新器可在游戏运行时后台更新翻译，完成后即时生效无需重启。
+- **内置控制面板：** 配置编辑器可直接在游戏内调整设置，无需退出游戏。
+- **画质优化：** 解锁帧率限制、分辨率缩放等图形设置，充分释放设备性能。
+- **跨平台支持：** 专为多平台设计，支持 Windows 和 Android 系统。
 
-# Installation
-Please see the [Getting started](https://hachimi.noccu.art/docs/hachimi/getting-started.html) page.
+# 安装指南
+请参阅[入门指南](https://hachimi.noccu.art/zh-cn/docs/hachimi/getting-started.html)。
 
-# Special thanks
-These projects have been the basis for Hachimi's development; without them, Hachimi would never have existed in its current form:
+# 特别鸣谢
+以下项目为 Hachimi 的开发奠定了重要基础，如果没有它们，Hachimi 不会有今天如此成就：
 
 - [Trainers' Legend G](https://github.com/MinamiChiwa/Trainers-Legend-G)
 - [umamusume-localify-android](https://github.com/Kimjio/umamusume-localify-android)
@@ -54,5 +69,5 @@ These projects have been the basis for Hachimi's development; without them, Hach
 - [umamusu-translate](https://github.com/noccu/umamusu-translate)
 - [frida-il2cpp-bridge](https://github.com/vfsfitvnm/frida-il2cpp-bridge)
 
-# License
+# 许可证
 [GNU GPLv3](LICENSE)
