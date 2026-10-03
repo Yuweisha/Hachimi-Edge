@@ -1,4 +1,17 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+/// 赛后 CutIn 的跳过时间窗（毫秒）：紧跟在比赛场景标记之后的特写才跳过
+const RACE_CUTIN_WINDOW_MS: u64 = 2_000;
+
+/// 最近一次比赛场景标记（Race / Orig）的时间戳
+static LAST_RACE_MS: AtomicU64 = AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 use crate::{
     core::{hachimi::GlobalCharReplaceConfig, Hachimi},
@@ -170,6 +183,32 @@ fn replace_char_controller(
 
     if !is_replacable(controller_type) || !orig_allowed(allow_orig, controller_type) {
         return false;
+    }
+
+    // 育成事件（EventTimeline）：只有用专属服装的演出（角色专属动作）跳过替换；
+    // 通用服装（训练服等）的剧情正常替换
+    if controller_type == UmaControllerType::EventTimeline as i32 && *dress_id >= 100000 {
+        return false;
+    }
+
+    // 比赛相关场景（Race / Orig）刷新时间戳
+    if controller_type == UmaControllerType::Race as i32
+        || controller_type == UmaControllerType::Orig as i32
+    {
+        LAST_RACE_MS.store(now_ms(), Ordering::Relaxed);
+    }
+
+    // 比赛（Race）不替换：替换会导致渲染异常（色块），且会持续污染后续画面
+    if controller_type == UmaControllerType::Race as i32 {
+        return false;
+    }
+
+    // 赛后特写（CutIn）不替换：比赛结算演出会卡住；其他场景的 CutIn 正常替换
+    if controller_type == UmaControllerType::CutIn as i32 {
+        let race_ms = LAST_RACE_MS.load(Ordering::Relaxed);
+        if race_ms > 0 && now_ms().saturating_sub(race_ms) < RACE_CUTIN_WINDOW_MS {
+            return false;
+        }
     }
 
     if !char_replace.replace_in_cutscene
