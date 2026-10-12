@@ -1,17 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-
-/// 赛后 CutIn 的跳过时间窗（毫秒）：紧跟在比赛场景标记之后的特写才跳过
-const RACE_CUTIN_WINDOW_MS: u64 = 2_000;
-
-/// 最近一次比赛场景标记（Race / Orig）的时间戳
-static LAST_RACE_MS: AtomicU64 = AtomicU64::new(0);
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     core::{hachimi::GlobalCharReplaceConfig, Hachimi},
@@ -54,7 +41,7 @@ fn orig_allowed(allow_orig: bool, controller_type: i32) -> bool {
     allow_orig || controller_type != UmaControllerType::Orig as i32
 }
 
-fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini: bool) -> Option<(i32, i32)> {
+pub fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini: bool) -> Option<(i32, i32)> {
     char_replace.data.iter()
         .find(|e| e.orig_char_id == chara_id && (!mini || e.replace_mini))
         .map(|e| (e.new_char_id, e.new_cloth_id))
@@ -88,7 +75,7 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
-fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
+pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
     if orig_dress_id < 100000 {
         return orig_dress_id;
     }
@@ -114,6 +101,25 @@ fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id:
     }
 
     orig_dress_id
+}
+
+static CHARA_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
+
+fn chara_table_ready() -> bool {
+    if sql::is_chara_data_ready() {
+        return true;
+    }
+
+    if !CHARA_PRELOAD_SCHEDULED.swap(true, Ordering::AcqRel) {
+        Thread::main_thread().schedule(|| {
+            if !sql::preload_chara_data() {
+                debug!("[replace] master.mdb 还没就绪，角色表稍后再加载");
+            }
+            CHARA_PRELOAD_SCHEDULED.store(false, Ordering::Release);
+        });
+    }
+
+    false
 }
 
 static DRESS_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
@@ -185,30 +191,10 @@ fn replace_char_controller(
         return false;
     }
 
-    // 育成事件（EventTimeline）：只有用专属服装的演出（角色专属动作）跳过替换；
-    // 通用服装（训练服等）的剧情正常替换
-    if controller_type == UmaControllerType::EventTimeline as i32 && *dress_id >= 100000 {
-        return false;
-    }
-
-    // 比赛相关场景（Race / Orig）刷新时间戳
-    if controller_type == UmaControllerType::Race as i32
-        || controller_type == UmaControllerType::Orig as i32
+    if controller_type == UmaControllerType::EventTimeline as i32
+        && crate::il2cpp::hook::umamusume::StoryTimelineData::SKIP_CUTSCENE_REPLACE.load(Ordering::Acquire)
     {
-        LAST_RACE_MS.store(now_ms(), Ordering::Relaxed);
-    }
-
-    // 比赛（Race）不替换：替换会导致渲染异常（色块），且会持续污染后续画面
-    if controller_type == UmaControllerType::Race as i32 {
         return false;
-    }
-
-    // 赛后特写（CutIn）不替换：比赛结算演出会卡住；其他场景的 CutIn 正常替换
-    if controller_type == UmaControllerType::CutIn as i32 {
-        let race_ms = LAST_RACE_MS.load(Ordering::Relaxed);
-        if race_ms > 0 && now_ms().saturating_sub(race_ms) < RACE_CUTIN_WINDOW_MS {
-            return false;
-        }
     }
 
     if !char_replace.replace_in_cutscene
@@ -226,6 +212,11 @@ fn replace_char_controller(
     }
 
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
+        if crate::il2cpp::hook::umamusume::SceneManager::is_race_scene_family()
+            && (!chara_table_ready() || !sql::is_playable_chara(new_chara_id))
+        {
+            return false;
+        }
         let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
         *dress_id = if char_replace.auto_dress {
