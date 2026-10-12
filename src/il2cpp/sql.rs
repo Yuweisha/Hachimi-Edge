@@ -1246,6 +1246,51 @@ pub fn get_dress_have_mini(dress_id: i32) -> bool {
     get_dress_info(dress_id).map(|info| info.have_mini).unwrap_or(false)
 }
 
+
+static CHARA_LAST_YEAR_CACHE: Lazy<RwLock<Option<FnvHashMap<i32, i32>>>> = Lazy::new(|| RwLock::new(None));
+static CHARA_LAST_YEAR_READY: AtomicBool = AtomicBool::new(false);
+
+fn load_chara_last_year() -> FnvHashMap<i32, i32> {
+    let mut items = FnvHashMap::default();
+    let db_path = get_masterdb_path();
+    let conn = Connection::new();
+
+    if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
+        let query = Connection::Query(conn, "SELECT id, last_year FROM chara_data".to_il2cpp_string());
+        if !query.is_null() {
+            while Query::Step(query) {
+                items.insert(Query::GetInt(query, 0), Query::GetInt(query, 1));
+            }
+            Query::Dispose(query);
+        }
+        Connection::CloseDB(conn);
+    }
+
+    items
+}
+
+pub fn is_chara_data_ready() -> bool {
+    CHARA_LAST_YEAR_READY.load(Ordering::Acquire)
+}
+
+pub fn preload_chara_data() -> bool {
+    let items = load_chara_last_year();
+    if items.is_empty() {
+        return false;
+    }
+    *CHARA_LAST_YEAR_CACHE.write().unwrap() = Some(items);
+    CHARA_LAST_YEAR_READY.store(true, Ordering::Release);
+    true
+}
+
+pub fn is_playable_chara(chara_id: i32) -> bool {
+    let cache = CHARA_LAST_YEAR_CACHE.read().unwrap();
+    match cache.as_ref() {
+        Some(items) => items.get(&chara_id).map(|last_year| *last_year != 1800).unwrap_or(false),
+        None => false,
+    }
+}
+
 /// Every dress in master.mdb as `(dress id, chara id, dress name)`, the name
 /// coming from text_data category 14 and left empty when there is none.
 pub fn get_all_dress_entries() -> Vec<(i32, i32, String)> {

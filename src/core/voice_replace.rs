@@ -5,7 +5,7 @@ use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::RwLock;
 
-use fnv::FnvHashMap;
+use fnv::{FnvHashMap, FnvHashSet};
 use once_cell::sync::Lazy;
 use crate::core::{Hachimi, utils::get_masterdb_path};
 use crate::il2cpp::ext::{Il2CppStringExt, StringExt};
@@ -72,12 +72,60 @@ fn resolve_target_sheet(sheet: &str, range: Range<usize>, new_chara: i32) -> Opt
     None
 }
 
+fn fallback_variant_if_unavailable(sheet: &str) -> Option<String> {
+    if !sheet.starts_with("snd_voi_") {
+        return None;
+    }
+    let at = sheet.rfind('_')?;
+    let seg = sheet.get(at + 1..)?;
+    if seg.len() != 6 || !seg.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let variant = &seg[4..6];
+    let available = match known_sheet(sheet) {
+        Some(found) => found,
+        None => cue_available(sheet),
+    };
+    if available {
+        return None;
+    }
+
+    let head = &sheet[..sheet.len() - 2];
+    let mut order: Vec<String> = vec!["01".to_string(), "00".to_string()];
+    for v in 2..=9u32 {
+        order.push(format!("{:02}", v));
+    }
+    for v in order {
+        if v == variant {
+            continue;
+        }
+        let candidate = format!("{}{}", head, v);
+        let cand_ok = match known_sheet(&candidate) {
+            Some(found) => found,
+            None => cue_available(&candidate),
+        };
+        if cand_ok {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
 pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppString> {
     if cue_sheet.is_null() {
         return None;
     }
 
     let sheet = unsafe { &*cue_sheet }.as_utf16str().to_string();
+
+    if let Some(fallback) = fallback_variant_if_unavailable(&sheet) {
+        let new_ptr = fallback.to_il2cpp_string();
+        if !new_ptr.is_null() {
+            debug!("[voice] {} -> {}（变体回退）", sheet, fallback);
+            return Some(new_ptr);
+        }
+    }
+
     let (chara_id, range) = chara_id_in(&sheet)?;
 
     let hachimi = Hachimi::instance();
@@ -101,6 +149,17 @@ pub fn rewrite_cue_sheet(cue_sheet: *mut Il2CppString) -> Option<*mut Il2CppStri
             debug!("[voice] {sheet} 没有可用的替换目标，保留原音");
             return None;
         }
+    };
+
+    let new_sheet = match fallback_variant_if_unavailable(&new_sheet) {
+        Some(fallback) => {
+            debug!(
+                "[voice] {} 的替换结果 {} 不可用，回退 {}",
+                sheet, new_sheet, fallback
+            );
+            fallback
+        }
+        None => new_sheet,
     };
 
     let new_ptr = new_sheet.to_il2cpp_string();
@@ -179,13 +238,25 @@ static SYSTEM_TEXT: Lazy<RwLock<FnvHashMap<(i32, i32), String>>> =
 static SYSTEM_TEXT_LOADING: AtomicBool = AtomicBool::new(false);
 static SYSTEM_TEXT_READY: AtomicBool = AtomicBool::new(false);
 
+static KNOWN_SHEETS: Lazy<RwLock<FnvHashSet<String>>> =
+    Lazy::new(|| RwLock::new(FnvHashSet::default()));
+
+fn known_sheet(sheet: &str) -> Option<bool> {
+    let set = KNOWN_SHEETS.read().unwrap();
+    if set.is_empty() {
+        return None;
+    }
+    Some(set.contains(sheet))
+}
+
 pub fn load_system_text() {
     let mut map = FnvHashMap::default();
+    let mut sheets = FnvHashSet::default();
     let db_path = get_masterdb_path();
     let conn = Connection::new();
 
     if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
-        let sql = "SELECT character_id, voice_id, text FROM character_system_text";
+        let sql = "SELECT character_id, voice_id, text, cue_sheet FROM character_system_text";
         let query = Connection::Query(conn, sql.to_il2cpp_string());
         if !query.is_null() {
             while Query::Step(query) {
@@ -194,6 +265,11 @@ pub fn load_system_text() {
                     .map(|s| s.as_utf16str().to_string())
                     .unwrap_or_default();
                 map.insert((Query::GetInt(query, 0), Query::GetInt(query, 1)), text);
+
+                let sheet_ptr = Query::GetText(query, 3);
+                if let Some(sheet) = unsafe { sheet_ptr.as_ref() } {
+                    sheets.insert(sheet.as_utf16str().to_string());
+                }
             }
             Query::Dispose(query);
         }
@@ -203,8 +279,9 @@ pub fn load_system_text() {
     if map.is_empty() {
         warn!("[voice] character_system_text 为空，稍后再试");
     } else {
-        debug!("[voice] 已缓存 {} 条台词文本", map.len());
+        debug!("[voice] 已缓存 {} 条台词文本 / {} 个 cue sheet", map.len(), sheets.len());
         *SYSTEM_TEXT.write().unwrap() = map;
+        *KNOWN_SHEETS.write().unwrap() = sheets;
         SYSTEM_TEXT_READY.store(true, Ordering::Release);
     }
 
