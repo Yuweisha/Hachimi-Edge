@@ -968,6 +968,9 @@ pub struct Config {
     #[serde(default, alias = "replaceGlobalChar")]
     pub replace_global_char: GlobalCharReplaceConfig,
 
+    #[serde(default = "Config::default_bv_unlock_all")]
+    pub bv_unlock_all: bool,
+
     // theme settings
     #[serde(default = "Config::default_ui_accent")]
     pub ui_accent_color: egui::Color32,
@@ -1005,6 +1008,7 @@ impl Config {
     fn default_champions_live_resource_id() -> i32 { 15 }
     fn default_champions_live_year() -> i32 { 2025 }
     pub fn default_ui_accent() -> egui::Color32 { egui::Color32::from_rgb(100, 150, 240) }
+    pub fn default_bv_unlock_all() -> bool { true }
     pub fn default_window_fill() -> egui::Color32 { egui::Color32::from_rgba_premultiplied(27, 27, 27, 220) }
     pub fn default_panel_fill() -> egui::Color32 { egui::Color32::from_rgba_premultiplied(27, 27, 27, 220) }
     pub fn default_extreme_bg() -> egui::Color32 { egui::Color32::from_rgb(15, 15, 15) }
