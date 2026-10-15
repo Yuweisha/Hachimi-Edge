@@ -6669,6 +6669,11 @@ impl ConfigEditor {
         if ui.button(t!("config_editor.char_replace_add")).clicked() {
             cfg.data.push(hachimi::GlobalCharReplaceEntry::default());
         }
+
+        ui.add_space(10.0);
+        ui.separator();
+        ui.add_space(6.0);
+        ui.checkbox(&mut config.bv_unlock_all, t!("config_editor.bv_unlock_all"));
     }
 
     fn options_page(&self, ui: &mut egui::Ui, config: &mut hachimi::Config, tab: ConfigEditorTab, scale: f32, column_spacing: f32) {
@@ -6974,7 +6979,14 @@ impl Window for ConfigEditor {
                         if self.search_term.is_empty() {
                             tab_bar(ui, "tabs_scroll", |ui| {
                                 for (tab, label) in ConfigEditorTab::display_list() {
-                                    if ui.selectable_label(self.current_tab == tab, label.as_ref()).clicked() {
+                                    if tab == ConfigEditorTab::CharReplace {
+                                        let selected = self.current_tab == tab;
+                                        let icon = egui::Image::new(egui::include_image!("../../assets/bv_icon.png"))
+                                            .fit_to_exact_size(egui::Vec2::splat(16.0 * scale));
+                                        if ui.add(egui::Button::image_and_text(icon, label.as_ref()).selected(selected)).clicked() {
+                                            self.current_tab = tab;
+                                        }
+                                    } else if ui.selectable_label(self.current_tab == tab, label.as_ref()).clicked() {
                                         self.current_tab = tab;
                                     }
                                 }

@@ -107,7 +107,7 @@ config_editor:
   general_tab: "\uf013 一般"
   graphics_tab: "\uf03e 圖像"
   gameplay_tab: "\uf11b 遊戲"
-  char_replace_tab: "\uf007 角色替換"
+  char_replace_tab: "BV百寶箱"
   char_replace_desc: "依角色 ID 替換遊戲內角色與服裝（移植自 Trainers' Legend G）。"
   char_replace_enable: "啟用角色替換"
   char_replace_cutscene: "過場動畫中也替換角色"
@@ -120,6 +120,7 @@ config_editor:
   char_replace_delete: "刪除配置"
   char_replace_empty:
   char_replace_add: "\uf067 新增規則"
+  bv_unlock_all: "解鎖未擁有的賽馬娘與服裝（Live 劇場）"
   language: "語言"
   disable_overlay: "禁用覆蓋層 (GUI)"
   disable_overlay_warning: >-

@@ -23,7 +23,7 @@ fn execute_command(command: &mut Command) -> Option<Output> {
 }
 
 fn setup_version_env() {
-    let mut version_str = "v1.0.0.0".to_owned();
+    let mut version_str = "v1.1.0.0".to_owned();
 
     if execute_command(Command::new("git").args(["--version"])).is_some() {
         if let Some(output) = execute_command(Command::new("git").args(["rev-parse", "--short", "HEAD"])) {
