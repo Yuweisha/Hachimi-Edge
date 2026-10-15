@@ -1310,6 +1310,25 @@ pub fn get_dress_sort_rows() -> Vec<(i32, i32, i32, i32)> {
     items
 }
 
+pub fn get_card_rows() -> Vec<(i32, i32)> {
+    let mut items = Vec::new();
+    let db_path = get_masterdb_path();
+    let conn = Connection::new();
+
+    if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
+        let query = Connection::Query(conn, "SELECT id, chara_id FROM card_data".to_il2cpp_string());
+        if !query.is_null() {
+            while Query::Step(query) {
+                items.push((Query::GetInt(query, 0), Query::GetInt(query, 1)));
+            }
+            Query::Dispose(query);
+        }
+        Connection::CloseDB(conn);
+    }
+
+    items
+}
+
 /// Every dress in master.mdb as `(dress id, chara id, dress name)`, the name
 /// coming from text_data category 14 and left empty when there is none.
 pub fn get_all_dress_entries() -> Vec<(i32, i32, String)> {
