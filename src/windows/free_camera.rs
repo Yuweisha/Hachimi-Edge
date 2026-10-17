@@ -94,6 +94,8 @@ pub enum FreeCameraMode {
     Free,
     FirstPerson,
     SelfieStick,
+    /// Hands the camera back to the game: no override is applied at all.
+    Restore,
 }
 
 impl Default for FreeCameraMode {
@@ -686,6 +688,7 @@ impl FreeCameraState {
                     self.live_follow_lookat_offset = Vec3::from_config(config.live_follow_lookat_offset);
                 }
             },
+            FreeCameraMode::Restore => {},
             FreeCameraMode::FirstPerson => {
                 if self.scene == CameraScene::Live {
                     self.live_first_person_offset = Vec3::from_config(config.live_first_person_offset);
@@ -754,8 +757,10 @@ pub fn reload_runtime_config() {
 }
 
 pub fn is_enabled() -> bool {
-    Hachimi::instance().config.load().windows.free_camera.enabled &&
-        !LIVE_UNSUPPORTED.load(Ordering::Acquire)
+    let config = Hachimi::instance().config.load();
+    config.windows.free_camera.enabled
+        && config.windows.free_camera.mode != FreeCameraMode::Restore
+        && !LIVE_UNSUPPORTED.load(Ordering::Acquire)
 }
 
 pub fn set_live_music_id(music_id: i32) {
@@ -871,6 +876,7 @@ fn mode_label(mode: FreeCameraMode) -> String {
         FreeCameraMode::Free => t!("free_camera.mode_free").into_owned(),
         FreeCameraMode::FirstPerson => t!("free_camera.mode_first_person").into_owned(),
         FreeCameraMode::SelfieStick => t!("free_camera.mode_selfie_stick").into_owned(),
+        FreeCameraMode::Restore => t!("free_camera.mode_restore").into_owned(),
     }
 }
 
@@ -1811,6 +1817,7 @@ fn deadzone(value: f32, deadzone: f32) -> f32 {
 
 fn move_forward_locked(state: &mut FreeCameraState, amount: f32) {
     match state.mode {
+        FreeCameraMode::Restore => {},
         FreeCameraMode::Free => {
             let yaw = state.yaw.to_radians();
             let pitch = state.pitch.to_radians();
@@ -1846,6 +1853,7 @@ fn move_forward_locked(state: &mut FreeCameraState, amount: f32) {
 
 fn move_side_locked(state: &mut FreeCameraState, amount: f32) {
     match state.mode {
+        FreeCameraMode::Restore => {},
         FreeCameraMode::Free => {
             let yaw = state.yaw.to_radians();
             let dir = Vec3::new(yaw.cos(), 0.0, yaw.sin());
@@ -1867,6 +1875,7 @@ fn move_side_locked(state: &mut FreeCameraState, amount: f32) {
 
 fn move_vertical_locked(state: &mut FreeCameraState, amount: f32) {
     match state.mode {
+        FreeCameraMode::Restore => {},
         FreeCameraMode::Free => {
             state.camera_pos.y += amount;
             state.camera_look_at.y += amount;
@@ -1891,6 +1900,7 @@ fn move_vertical_locked(state: &mut FreeCameraState, amount: f32) {
 
 fn apply_look_delta_locked(state: &mut FreeCameraState, yaw_delta: f32, pitch_delta: f32, mouse: bool) {
     match state.mode {
+        FreeCameraMode::Restore => {},
         FreeCameraMode::Free => {
             state.yaw += yaw_delta;
             if state.yaw >= 360.0 {
@@ -1952,7 +1962,8 @@ fn cycle_mode_locked(state: &mut FreeCameraState) {
     state.mode = match state.mode {
         FreeCameraMode::Free => FreeCameraMode::SelfieStick,
         FreeCameraMode::SelfieStick => FreeCameraMode::FirstPerson,
-        FreeCameraMode::FirstPerson => FreeCameraMode::Free,
+        FreeCameraMode::FirstPerson => FreeCameraMode::Restore,
+        FreeCameraMode::Restore => FreeCameraMode::Free,
     };
     state.camera_rotation = None;
     state.live_follow_target = None;

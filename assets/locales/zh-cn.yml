@@ -379,6 +379,7 @@ free_camera:
   mode_free: "自由移动"
   mode_first_person: "第一人称"
   mode_selfie_stick: "跟随角色"
+  mode_restore: "还原镜头"
   live_move_step: "Live 移动步长"
   race_move_step: "比赛移动步长"
   look_step: "视角步长"

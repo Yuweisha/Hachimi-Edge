@@ -393,6 +393,7 @@ free_camera:
   mode_free: "Free Move"
   mode_first_person: "First Person"
   mode_selfie_stick: "Follow Character"
+  mode_restore: "Restore Camera"
   live_move_step: "Live move step"
   race_move_step: "Race move step"
   look_step: "Look step"
