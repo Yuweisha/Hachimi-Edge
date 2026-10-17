@@ -42,7 +42,7 @@ fn orig_allowed(allow_orig: bool, controller_type: i32) -> bool {
     allow_orig || controller_type != UmaControllerType::Orig as i32
 }
 
-fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini: bool) -> Option<(i32, i32)> {
+pub fn find_replacement(char_replace: &GlobalCharReplaceConfig, chara_id: i32, mini: bool) -> Option<(i32, i32)> {
     char_replace.data.iter()
         .find(|e| e.orig_char_id == chara_id && (!mini || e.replace_mini))
         .map(|e| (e.new_char_id, e.new_cloth_id))
@@ -83,7 +83,7 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
 ///
 /// 场景要的是**默认套**（head_sub_id = 0，也就是决胜服）时，用规则里指定的那件：
 /// 那是用户自己挑的，比对类型更符合预期。只有非默认套才按 head_sub_id 去目标角色身上找。
-fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
+pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
     if orig_dress_id < 100000 {
         return orig_dress_id;
     }
