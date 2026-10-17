@@ -174,7 +174,6 @@ config_editor:
   char_replace_enable: "Enable character replacement"
   char_replace_cutscene: "Replace in cutscenes as well"
   char_replace_cutscene_model: "Replace appearance only in cutscenes"
-  char_replace_chara_only: "Replace character only (keep outfit, diagnostic)"
   char_replace_universal: "Replace dress as well"
   char_replace_auto_dress: "Auto-fit dress to the scene"
   char_replace_orig: "Original"

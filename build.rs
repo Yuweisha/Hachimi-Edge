@@ -23,7 +23,8 @@ fn execute_command(command: &mut Command) -> Option<Output> {
 }
 
 fn setup_version_env() {
-    let mut version_str = "v1.2.1.0".to_owned();
+    // 显示版本固定四段（X.Y.Z.0），与历史版本串保持一致的形态
+    let mut version_str = format!("v{}.0", env!("CARGO_PKG_VERSION"));
 
     if execute_command(Command::new("git").args(["--version"])).is_some() {
         if let Some(output) = execute_command(Command::new("git").args(["rev-parse", "--short", "HEAD"])) {
