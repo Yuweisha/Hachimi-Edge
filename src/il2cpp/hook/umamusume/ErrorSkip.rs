@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 use crate::il2cpp::{symbols::{get_class, get_method_addr}, types::*};
 
 type GotoTitleOnErrorFn = extern "C" fn(text: *mut Il2CppString) -> ();
