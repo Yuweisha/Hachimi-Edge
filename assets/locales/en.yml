@@ -182,6 +182,8 @@ config_editor:
   cutin_fov_scale: "Cut-in FOV (camera offset counter)"
   cutin_progress_slider: "Enable animation progress bar"
   cutin_block_ui_events: "Machine learning: auto-block name overlay"
+  intercept_error_dialog: "Intercept error dialog"
+  replace_mode_ctor: "TLG mode: replace at construction (experimental, exclusive with master switch)"
   language: "Language"
   restore_defaults: "Restore Defaults"
   disable_overlay: "Disable overlay (GUI)"

@@ -1020,6 +1020,12 @@ pub struct Config {
     #[serde(default = "Config::default_cutin_block_ui_events")]
     pub cutin_block_ui_events: bool,
 
+    #[serde(default)]
+    pub replace_mode_ctor: bool,
+
+    #[serde(default = "Config::default_intercept_error_dialog")]
+    pub intercept_error_dialog: bool,
+
     // theme settings
     #[serde(default = "Config::default_ui_accent")]
     pub ui_accent_color: egui::Color32,
@@ -1061,6 +1067,7 @@ impl Config {
     pub fn default_cutin_fov_scale() -> f32 { 1.0 }
     pub fn default_cutin_progress_slider() -> bool { true }
     pub fn default_cutin_block_ui_events() -> bool { true }
+    pub fn default_intercept_error_dialog() -> bool { true }
     pub fn default_window_fill() -> egui::Color32 { egui::Color32::from_rgba_premultiplied(27, 27, 27, 220) }
     pub fn default_panel_fill() -> egui::Color32 { egui::Color32::from_rgba_premultiplied(27, 27, 27, 220) }
     pub fn default_extreme_bg() -> egui::Color32 { egui::Color32::from_rgb(15, 15, 15) }

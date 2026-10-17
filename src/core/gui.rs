@@ -6825,6 +6825,8 @@ impl ConfigEditor {
         ui.checkbox(&mut config.cutin_progress_slider, t!("config_editor.cutin_progress_slider"));
         ui.add_space(6.0);
         ui.checkbox(&mut config.cutin_block_ui_events, t!("config_editor.cutin_block_ui_events"));
+        ui.add_space(6.0);
+        ui.checkbox(&mut config.intercept_error_dialog, t!("config_editor.intercept_error_dialog"));
         ui.add_space(10.0);
         ui.separator();
         ui.add_space(6.0);
@@ -6832,7 +6834,14 @@ impl ConfigEditor {
         ui.label(t!("config_editor.char_replace_desc"));
         ui.add_space(6.0);
 
-        ui.checkbox(&mut cfg.enable, t!("config_editor.char_replace_enable"));
+        let enable_changed = ui.checkbox(&mut cfg.enable, t!("config_editor.char_replace_enable")).changed();
+        if enable_changed && cfg.enable {
+            config.replace_mode_ctor = false;
+        }
+        let ctor_changed = ui.checkbox(&mut config.replace_mode_ctor, t!("config_editor.replace_mode_ctor")).changed();
+        if ctor_changed && config.replace_mode_ctor {
+            cfg.enable = false;
+        }
         ui.add_space(2.0);
         ui.checkbox(&mut cfg.replace_universal, t!("config_editor.char_replace_universal"));
         ui.add_space(2.0);

@@ -320,6 +320,20 @@ fn cls_opt(umamusume: *const Il2CppImage, name: &str) -> Option<*mut Il2CppClass
     if k.is_null() { None } else { Some(k) }
 }
 
+// GallopUtil.GotoTitleOnError(string)
+type GotoTitleOnErrorFn = extern "C" fn(text: *mut Il2CppString) -> ();
+static GOTO_ERR_LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+extern "C" fn GotoTitleOnError_hook(text: *mut Il2CppString) {
+    if Hachimi::instance().config.load().intercept_error_dialog {
+        if !GOTO_ERR_LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            let msg = unsafe { read_il2cpp_string(text) };
+            warn!("[cutin] intercepted GotoTitleOnError: {}", msg);
+        }
+        return;
+    }
+    get_orig_fn!(GotoTitleOnError_hook, GotoTitleOnErrorFn)(text)
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     if let Ok(k) = get_class(umamusume, c"Gallop.CutIn.Cutt", c"CutInTimelineMotionCamera") {
         let a = get_method_addr(k, c"AlterLateUpdate", 3);
@@ -344,6 +358,10 @@ pub fn init(umamusume: *const Il2CppImage) {
             let a = get_method_addr(obj_cls, c"Internal_CloneSingle", 1);
             if a != 0 { new_hook!(a, CloneSingle1_hook); }
         }
+    }
+    if let Ok(k) = get_class(umamusume, c"Gallop", c"GallopUtil") {
+        let a = get_method_addr(k, c"GotoTitleOnError", 1);
+        if a != 0 { new_hook!(a, GotoTitleOnError_hook); }
     }
     load_shadow_frames();
 }

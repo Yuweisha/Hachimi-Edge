@@ -141,15 +141,28 @@ fn dress_table_ready() -> bool {
     false
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum ReplaceMode {
+    Rebuild,
+    Ctor,
+    Any,
+}
+
 fn replace_char_controller(
     chara_id: &mut i32, dress_id: &mut i32, head_id: &mut i32,
-    controller_type: i32, allow_orig: bool
+    controller_type: i32, allow_orig: bool, mode: ReplaceMode
 ) -> bool {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
     let char_replace = &config.replace_global_char;
 
-    if !char_replace.enable {
+    let enabled = match mode {
+        ReplaceMode::Rebuild => char_replace.enable && !config.replace_mode_ctor,
+        ReplaceMode::Ctor => config.replace_mode_ctor,
+        ReplaceMode::Any => char_replace.enable || config.replace_mode_ctor,
+    };
+
+    if !enabled {
         return false;
     }
 
@@ -191,9 +204,7 @@ fn replace_char_controller(
         return false;
     }
 
-    if controller_type == UmaControllerType::EventTimeline as i32
-        && crate::il2cpp::hook::umamusume::StoryTimelineData::SKIP_CUTSCENE_REPLACE.load(Ordering::Acquire)
-    {
+    if controller_type == UmaControllerType::EventTimeline as i32 {
         return false;
     }
 
@@ -237,6 +248,36 @@ fn replace_char_controller(
 }
 
 static mut CHARA_ID_FIELD: *mut FieldInfo = 0 as _;
+type CBICtor0Fn = extern "C" fn(this: *mut Il2CppObject, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, extra_bool: bool);
+extern "C" fn CharacterBuildInfo_Ctor0(this: *mut Il2CppObject, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, extra_bool: bool) {
+    let mut cid = chara_id;
+    let mut did = dress_id;
+    let mut hid = head_id;
+    let replaced = replace_char_controller(&mut cid, &mut did, &mut hid, controller_type, false, ReplaceMode::Ctor);
+    let (f_cid, f_did, f_hid) = if replaced {
+        debug!("[replace-ctor0] chara {}->{} dress {}->{} ctrl={}", chara_id, cid, dress_id, did, controller_type);
+        (cid, did, hid)
+    } else {
+        (chara_id, dress_id, head_id)
+    };
+    get_orig_fn!(CharacterBuildInfo_Ctor0, CBICtor0Fn)(this, f_cid, f_did, controller_type, f_hid, zekken, mob_id, back_dancer_color_id, is_use_dress_data_head_model_sub_id, audience_id, motion_dress_id, is_enable_model_cache, extra_bool)
+}
+
+type CBICtor1Fn = extern "C" fn(this: *mut Il2CppObject, card_id: i32, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, override_cloth_category: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, chara_dress_color_set_id: i32, extra_bool: bool);
+extern "C" fn CharacterBuildInfo_Ctor1(this: *mut Il2CppObject, card_id: i32, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, override_cloth_category: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, chara_dress_color_set_id: i32, extra_bool: bool) {
+    let mut cid = chara_id;
+    let mut did = dress_id;
+    let mut hid = head_id;
+    let replaced = replace_char_controller(&mut cid, &mut did, &mut hid, controller_type, false, ReplaceMode::Ctor);
+    let (f_cid, f_did, f_hid) = if replaced {
+        debug!("[replace-ctor1] card={} chara {}->{} dress {}->{} ctrl={}", card_id, chara_id, cid, dress_id, did, controller_type);
+        (cid, did, hid)
+    } else {
+        (chara_id, dress_id, head_id)
+    };
+    get_orig_fn!(CharacterBuildInfo_Ctor1, CBICtor1Fn)(this, card_id, f_cid, f_did, controller_type, f_hid, zekken, mob_id, back_dancer_color_id, override_cloth_category, is_use_dress_data_head_model_sub_id, audience_id, motion_dress_id, is_enable_model_cache, chara_dress_color_set_id, extra_bool)
+}
+
 static mut CARD_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut CONTROLLER_TYPE_FIELD: *mut FieldInfo = 0 as _;
@@ -252,7 +293,7 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
             let controller_type: i32 = get_field_value(this, CONTROLLER_TYPE_FIELD);
             let mut head_model_sub_id: i32 = get_field_value(this, HEAD_MODEL_SUB_ID_FIELD);
 
-            if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false) {
+            if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false, ReplaceMode::Rebuild) {
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);
                 set_field_value(this, DRESS_ID_FIELD, &dress_id);
                 set_field_value(this, HEAD_MODEL_SUB_ID_FIELD, &head_model_sub_id);
@@ -275,7 +316,7 @@ extern "C" fn GetRaceDressId(this: *mut Il2CppObject, _is_apply_dress_change: bo
         let mut new_chara_id = chara_id;
         let mut new_dress_id = ret;
         let mut new_head_id = 0;
-        if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32, true) {
+        if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32, true, ReplaceMode::Any) {
             if dress_belongs_to(new_dress_id, chara_id) {
                 return new_dress_id;
             }
@@ -294,6 +335,30 @@ fn init_character_build_info(umamusume: *const Il2CppImage) {
 
     let CharacterBuildInfo_Rebuild_addr = get_method_addr(CharacterBuildInfo, c"Rebuild", 0);
     new_hook!(CharacterBuildInfo_Rebuild_addr, CharacterBuildInfo_Rebuild);
+
+    let ctor0 = get_method_addr(CharacterBuildInfo, c".ctor", 12);
+    if ctor0 != 0 { new_hook!(ctor0, CharacterBuildInfo_Ctor0); }
+    let ctor1 = get_method_addr(CharacterBuildInfo, c".ctor", 15);
+    if ctor1 != 0 { new_hook!(ctor1, CharacterBuildInfo_Ctor1); }
+
+    unsafe {
+        let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
+        loop {
+            let m = crate::il2cpp::api::il2cpp_class_get_methods(CharacterBuildInfo, &mut iter);
+            if m.is_null() { break; }
+            let name = std::ffi::CStr::from_ptr((*m).name).to_string_lossy();
+            if name == ".ctor" {
+                let argc = crate::il2cpp::api::il2cpp_method_get_param_count(m);
+                let mut sig: Vec<String> = Vec::new();
+                for i in 0..argc {
+                    let ty = crate::il2cpp::api::il2cpp_method_get_param(m, i);
+                    let p = if ty.is_null() { std::ptr::null() } else { crate::il2cpp::api::il2cpp_type_get_name(ty) };
+                    sig.push(if p.is_null() { "?".to_string() } else { std::ffi::CStr::from_ptr(p).to_string_lossy().to_string() });
+                }
+                info!("[replace] CharacterBuildInfo .ctor argc={} addr={:#x} params=[{}]", argc, (*m).methodPointer, sig.join(", "));
+            }
+        }
+    }
 
     unsafe {
         CHARA_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_charaId");

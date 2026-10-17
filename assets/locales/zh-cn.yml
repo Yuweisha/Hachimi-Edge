@@ -170,6 +170,8 @@ config_editor:
   cutin_fov_scale: "特写FOV（镜头偏移对抗）"
   cutin_progress_slider: "启用动画进度条"
   cutin_block_ui_events: "机器学习：自动屏蔽名称遮罩"
+  intercept_error_dialog: "拦截错误弹窗"
+  replace_mode_ctor: "TLG 模式：构造时替换（实验，与总开关互斥）"
   language: "语言"
   restore_defaults: "恢复默认设置"
   disable_overlay: "禁用覆盖层（GUI）"

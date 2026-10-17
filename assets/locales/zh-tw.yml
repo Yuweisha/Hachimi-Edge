@@ -125,6 +125,8 @@ config_editor:
   cutin_fov_scale: "特寫FOV（鏡頭偏移對抗）"
   cutin_progress_slider: "啟用動畫進度條"
   cutin_block_ui_events: "機器學習：自動屏蔽名稱遮罩"
+  intercept_error_dialog: "攔截錯誤彈窗"
+  replace_mode_ctor: "TLG 模式：建構時替換（實驗，與總開關互斥）"
   language: "語言"
   disable_overlay: "禁用覆蓋層 (GUI)"
   disable_overlay_warning: >-

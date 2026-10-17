@@ -1,5 +1,5 @@
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicBool, Ordering};
+
 
 use serde::{Deserialize, Serialize};
 use widestring::Utf16Str;
@@ -24,31 +24,6 @@ const CLIP_TEXT_FONT_SIZE_BOLD_CAPTION: i32 = 64;
 
 // probably?
 const STORY_VIEW_CLIP_TEXT_LINE_WIDTH: i32 = 32;
-
-pub static SKIP_CUTSCENE_REPLACE: AtomicBool = AtomicBool::new(false);
-
-fn should_skip_cutscene(base_path: &str) -> bool {
-    let Some(name) = base_path.rsplit('/').next() else {
-        return false;
-    };
-
-    if name.starts_with("storytimeline_40") {
-        return true;
-    }
-
-    let Some(code) = name.strip_prefix("storytimeline_50") else {
-        return false;
-    };
-    if code.len() < 7 {
-        return false;
-    }
-    let Ok(series) = code[4..7].parse::<u32>() else {
-        return false;
-    };
-    (100..=119).contains(&series)
-        || (409..=450).contains(&series)
-        || (700..=799).contains(&series)
-}
 
 static mut CLASS: *mut Il2CppClass = null_mut();
 pub fn class() -> *mut Il2CppClass {
@@ -138,8 +113,6 @@ pub fn on_LoadAsset(_bundle: *mut Il2CppObject, this: *mut Il2CppObject, name: &
     rewrite_story_shadow_types(this);
 
     let base_path = name[ASSET_PATH_PREFIX.len()..].path_basename();
-
-    SKIP_CUTSCENE_REPLACE.store(should_skip_cutscene(&base_path.to_string()), Ordering::Release);
 
     replace_story_chara_tracks(this);
 
@@ -326,10 +299,6 @@ fn get_typewrite_length(text_len: usize, tcps: f32) -> i32 {
 }
 
 fn replace_story_chara_tracks(this: *mut Il2CppObject) {
-    if SKIP_CUTSCENE_REPLACE.load(Ordering::Acquire) {
-        return;
-    }
-
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
     let char_replace = &config.replace_global_char;
