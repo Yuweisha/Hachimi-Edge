@@ -366,6 +366,7 @@ race_stat_hud:
   secure_lead: "确保领先"
 
 free_camera:
+  toggle_shortcut_label: "切换自由视角"
   settings_title: "自由视角设置"
   section_general: "通用"
   section_recover: "脱困"

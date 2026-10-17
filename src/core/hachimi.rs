@@ -747,13 +747,16 @@ pub enum ShortcutOption {
     #[default]
     ThemeEditor,
     FreeCamera,
-    LiveVocalsSwap
+    LiveVocalsSwap,
+    /// 直接切换自由视角开关（不开设置窗口）。
+    FreeCameraToggle
 }
 
 impl ShortcutOption {
-    pub const ALL: [ShortcutOption; 3] = [
+    pub const ALL: [ShortcutOption; 4] = [
         ShortcutOption::ThemeEditor,
         ShortcutOption::FreeCamera,
+        ShortcutOption::FreeCameraToggle,
         ShortcutOption::LiveVocalsSwap
     ];
 }

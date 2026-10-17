@@ -266,13 +266,14 @@ impl ShortcutOption {
         match self {
             ShortcutOption::ThemeEditor => t!("theme_editor.title"),
             ShortcutOption::FreeCamera => t!("free_camera.settings_title"),
-            ShortcutOption::LiveVocalsSwap => t!("config_editor.live_vocals_swap")
+            ShortcutOption::LiveVocalsSwap => t!("config_editor.live_vocals_swap"),
+            ShortcutOption::FreeCameraToggle => t!("free_camera.toggle_shortcut_label")
         }
     }
 
     #[cfg(target_os = "android")]
     pub fn is_available(self) -> bool {
-        self != ShortcutOption::FreeCamera
+        !matches!(self, ShortcutOption::FreeCamera | ShortcutOption::FreeCameraToggle)
     }
 
     #[cfg(target_os = "windows")]
@@ -311,6 +312,18 @@ fn toggle_shortcut_window(option: ShortcutOption) {
             ShortcutOption::FreeCamera => {
                 gui.show_window(Box::new(FreeCameraSettingsWindow::new()));
             },
+            #[cfg(target_os = "windows")]
+            ShortcutOption::FreeCameraToggle => {
+                let hachimi = Hachimi::instance();
+                let mut config = hachimi.config.load().as_ref().clone();
+                config.windows.free_camera.enabled = !config.windows.free_camera.enabled;
+                let enabled = config.windows.free_camera.enabled;
+                let _ = hachimi.config.store(std::sync::Arc::new(config));
+                crate::windows::free_camera::reload_runtime_config();
+                warn!("[free_camera] toggled by shortcut: enabled={}", enabled);
+            },
+            #[cfg(target_os = "android")]
+            ShortcutOption::FreeCameraToggle => {},
             #[cfg(target_os = "android")]
             ShortcutOption::FreeCamera => {},
             ShortcutOption::LiveVocalsSwap => {

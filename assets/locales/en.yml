@@ -380,6 +380,7 @@ race_stat_hud:
   secure_lead: "Secure Lead"
 
 free_camera:
+  toggle_shortcut_label: "Toggle Free Camera"
   settings_title: "Free Camera Settings"
   section_general: "General"
   section_recover: "Recovery"
