@@ -1030,9 +1030,6 @@ pub struct Config {
     #[serde(default = "Config::default_cutin_block_ui_events")]
     pub cutin_block_ui_events: bool,
 
-    #[serde(default)]
-    pub replace_mode_ctor: bool,
-
     #[serde(default = "Config::default_intercept_error_dialog")]
     pub intercept_error_dialog: bool,
 

@@ -2,10 +2,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     core::{hachimi::GlobalCharReplaceConfig, Hachimi},
-    il2cpp::{ext::Il2CppObjectExt, symbols::Thread},
+    il2cpp::symbols::Thread,
     il2cpp::{
         sql,
-        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value, FieldsIter},
+        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value},
         types::*,
     },
 };
@@ -314,39 +314,6 @@ static mut USE_DRESS_DATA_HEAD_FIELD: *mut FieldInfo = 0 as _;
 static mut BODY_MODEL_SUB_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut MOTION_BODY_MODEL_SUB_ID_FIELD: *mut FieldInfo = 0 as _;
 
-static CBINFO_DUMPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// Diagnostic: dump every CharacterBuildInfo field for one character build, so
-/// we can see where an outfit/head sub id that never appears in the timeline
-/// track (e.g. dress 100230 / head 30) is coming from.
-unsafe fn dump_build_info(this: *mut Il2CppObject, tag: &str) {
-    let klass = (*this).klass();
-    if klass.is_null() {
-        return;
-    }
-    let mut parts: Vec<String> = Vec::new();
-    let mut klass_name = String::new();
-    // 实际类型可能是子类，字段散在父类链上 —— 逐级向上收集
-    let mut k = klass;
-    let mut depth = 0;
-    while !k.is_null() && depth < 8 {
-        if depth == 0 {
-            klass_name = std::ffi::CStr::from_ptr((*k).name).to_string_lossy().to_string();
-        }
-        for f in FieldsIter::new(k) {
-            let name = std::ffi::CStr::from_ptr((*f).name).to_string_lossy().to_string();
-            let off = (*f).offset;
-            if off <= 0 || off > 0x800 {
-                continue;
-            }
-            let v: i32 = *((this as usize + off as usize) as *const i32);
-            parts.push(format!("{}={}", name, v));
-        }
-        k = crate::il2cpp::api::il2cpp_class_get_parent(k);
-        depth += 1;
-    }
-    warn!("[cbinfo] {} ({}) [{}]", tag, klass_name, parts.join(", "));
-}
 
 type CharacterBuildInfoRebuildFn = extern "C" fn(this: *mut Il2CppObject);
 extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
@@ -358,18 +325,6 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
             CURRENT_CONTROLLER_TYPE.store(controller_type, Ordering::Release);
             let mut head_model_sub_id: i32 = get_field_value(this, HEAD_MODEL_SUB_ID_FIELD);
 
-            if (controller_type == UmaControllerType::EventTimeline as i32
-                || head_model_sub_id != 0)
-                && CBINFO_DUMPS.fetch_add(1, Ordering::Relaxed) < 20
-            {
-                dump_build_info(
-                    this,
-                    &format!(
-                        "ctrl={} chara={} dress={} head={}",
-                        controller_type, chara_id, dress_id, head_model_sub_id
-                    ),
-                );
-            }
 
             if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false) {
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);

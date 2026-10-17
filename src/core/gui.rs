@@ -6856,14 +6856,7 @@ impl ConfigEditor {
         ui.label(t!("config_editor.char_replace_desc"));
         ui.add_space(6.0);
 
-        let enable_changed = ui.checkbox(&mut cfg.enable, t!("config_editor.char_replace_enable")).changed();
-        if enable_changed && cfg.enable {
-            config.replace_mode_ctor = false;
-        }
-        let ctor_changed = ui.checkbox(&mut config.replace_mode_ctor, t!("config_editor.replace_mode_ctor")).changed();
-        if ctor_changed && config.replace_mode_ctor {
-            cfg.enable = false;
-        }
+        ui.checkbox(&mut cfg.enable, t!("config_editor.char_replace_enable"));
         ui.add_space(2.0);
         ui.checkbox(&mut cfg.replace_universal, t!("config_editor.char_replace_universal"));
         ui.add_space(2.0);

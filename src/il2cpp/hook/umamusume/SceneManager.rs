@@ -42,71 +42,11 @@ impl_addr_wrapper_fn!(GetCurrentSceneId, GETCURRENTSCENEID_ADDR, SceneId, this: 
 static SCENE_ID_CACHE: atomic::AtomicI32 = atomic::AtomicI32::new(0);
 
 
-// ---- 栈采样：栈顶变化时记录，用来定位卡死时主线程停在哪 ----
-#[cfg(target_os = "windows")]
-mod stack_trace {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    static LAST_TOP: AtomicUsize = AtomicUsize::new(0);
-    static LAST_FN: AtomicUsize = AtomicUsize::new(0);
-    static SAMPLES: AtomicUsize = AtomicUsize::new(0);
-
-    #[link(name = "kernel32")]
-    extern "system" {
-        fn RtlCaptureStackBackTrace(
-            frames_to_skip: u32,
-            frames_to_capture: u32,
-            back_trace: *mut *mut std::ffi::c_void,
-            back_trace_hash: *mut u32,
-        ) -> u16;
-    }
-
-    pub fn sample() {
-        let n = SAMPLES.fetch_add(1, Ordering::Relaxed);
-        // 每 15 帧采样一次，够密也不会太吵
-        if n % 15 != 0 {
-            return;
-        }
-
-        let mut frames: [*mut std::ffi::c_void; 24] = [std::ptr::null_mut(); 24];
-        let depth = unsafe { RtlCaptureStackBackTrace(1, 24, frames.as_mut_ptr(), std::ptr::null_mut()) };
-        if depth == 0 {
-            return;
-        }
-
-        // 用第 1、2 帧（离调用点最近的游戏代码）作为指纹
-        let top = frames[0] as usize;
-        let fn2 = if depth > 1 { frames[1] as usize } else { 0 };
-        if top == LAST_TOP.load(Ordering::Relaxed) && fn2 == LAST_FN.load(Ordering::Relaxed) {
-            return;
-        }
-        LAST_TOP.store(top, Ordering::Relaxed);
-        LAST_FN.store(fn2, Ordering::Relaxed);
-
-        let mut chain = String::new();
-        for i in 0..depth as usize {
-            chain.push_str(&format!("{:#x} ", frames[i] as usize));
-            if i >= 9 {
-                break;
-            }
-        }
-        warn!("[stack] depth={} {}", depth, chain);
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn sample_stack() {
-    stack_trace::sample();
-}
-
-#[cfg(not(target_os = "windows"))]
-fn sample_stack() {}
 
 type AlterUpdateFn = extern "C" fn(this: *mut Il2CppObject);
 extern "C" fn AlterUpdate(this: *mut Il2CppObject) {
     get_orig_fn!(AlterUpdate, AlterUpdateFn)(this);
     SCENE_ID_CACHE.store(GetCurrentSceneId(this) as i32, atomic::Ordering::Release);
-    sample_stack();
 }
 
 pub fn current_scene_id() -> SceneId {

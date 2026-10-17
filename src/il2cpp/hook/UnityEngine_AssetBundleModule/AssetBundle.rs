@@ -79,19 +79,6 @@ extern "C" fn LoadAssetAsync_Internal(this: *mut Il2CppObject, name: *mut Il2Cpp
 type OnLoadAssetFn = fn(bundle: *mut Il2CppObject, asset: *mut Il2CppObject, name: &Utf16Str);
 pub fn on_LoadAsset(bundle: *mut Il2CppObject, asset: *mut Il2CppObject, name: *mut Il2CppString) {
     let class = unsafe { (*asset).klass() };
-    let mut interesting: Option<String> = None;
-    if !name.is_null() {
-        let res_name = unsafe { (*name).as_utf16str() }.to_string();
-        let class_name = unsafe { std::ffi::CStr::from_ptr((*class).name).to_str().unwrap_or("?") };
-        let hit = ["pfb", "chr", "bdy", "motion", "anm_", "tail", "hair", "skel"]
-            .iter()
-            .any(|k| res_name.to_lowercase().contains(k));
-        if hit {
-            warn!("[asset] {:>28} | {}", class_name, res_name);
-            interesting = Some(res_name);
-        }
-    }
-
     let handler: OnLoadAssetFn = if class == GameObject::class() {
         GameObject::on_LoadAsset
     }
@@ -121,10 +108,6 @@ pub fn on_LoadAsset(bundle: *mut Il2CppObject, asset: *mut Il2CppObject, name: *
     };
 
     handler(bundle, asset, unsafe { (*name).as_utf16str() });
-
-    if let Some(res) = interesting {
-        warn!("[asset] done | {}", res);
-    }
 }
 
 type LoadFromFileInternalFn = extern "C" fn(path: *mut Il2CppString, crc: u32, offset: u64) -> *mut Il2CppObject;

@@ -1,7 +1,6 @@
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-static MTDUMP_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 use serde::{Deserialize, Serialize};
 use widestring::Utf16Str;
@@ -344,14 +343,6 @@ fn replace_story_chara_tracks(this: *mut Il2CppObject, base_path: &str) {
             };
             let old_dress = StoryTimelineCharaTrackData::get_DressId(chara_track_data);
             let old_head = StoryTimelineCharaTrackData::get_HeadId(chara_track_data);
-            if (old_dress >= 100000 || old_head != 0)
-                && MTDUMP_COUNT.fetch_add(1, Ordering::Relaxed) < 12
-            {
-                StoryTimelineCharaTrackData::dump_motion_track_data(
-                    chara_track_data,
-                    &format!("dress={} head={}", old_dress, old_head),
-                );
-            }
             let nd = auto_pick_dress_for_track(old_dress, new_chara_id, new_dress_id);
             let (new_dress, new_head) = (nd, sql::get_head_id_from_dress_id(nd));
             let _ = old_head;
