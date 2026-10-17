@@ -806,6 +806,9 @@ pub struct GlobalCharReplaceConfig {
     pub auto_dress: bool,
     #[serde(default)]
     pub replace_model_in_cutscene: bool,
+    /// 只换角色（头/骨架），服装保持原样。用于二分定位"换 dress 是否导致卡死"。
+    #[serde(default)]
+    pub chara_only: bool,
     #[serde(default)]
     pub data: Vec<GlobalCharReplaceEntry>,
 }
@@ -819,6 +822,7 @@ impl Default for GlobalCharReplaceConfig {
             replace_in_cutscene: false,
             auto_dress: true,
             replace_model_in_cutscene: false,
+            chara_only: false,
             data: Vec::new(),
         }
     }

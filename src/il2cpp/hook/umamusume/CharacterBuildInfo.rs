@@ -276,6 +276,14 @@ fn replace_char_controller(
         }
         let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
+        if char_replace.chara_only {
+            // 只换角色：服装/头部变体保持原样，用来判断卡死是否由换装导致
+            debug!(
+                "[replace] chara_only: chara {}->{} dress {} kept head {} kept",
+                orig.0, new_chara_id, orig.1, orig.2
+            );
+            return true;
+        }
         *dress_id = if char_replace.auto_dress {
             auto_pick_dress(orig.1, new_chara_id, new_dress_id)
         } else {
