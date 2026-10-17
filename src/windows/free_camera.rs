@@ -886,9 +886,12 @@ pub fn scene() -> CameraScene {
 
 pub fn is_scene_enabled(scene: CameraScene) -> bool {
     let config = Hachimi::instance().config.load();
-    config.windows.free_camera.enabled &&
-        !LIVE_UNSUPPORTED.load(Ordering::Acquire) &&
-        STATE.lock().unwrap().scene == scene
+    config.windows.free_camera.enabled
+        // Restore 模式要交还镜头：保留 scene 判定会让 GetValue 继续写回冻结的位置，
+        // 镜头于是停在原地而不是恢复演出运镜。
+        && config.windows.free_camera.mode != FreeCameraMode::Restore
+        && !LIVE_UNSUPPORTED.load(Ordering::Acquire)
+        && STATE.lock().unwrap().scene == scene
 }
 
 pub fn mode() -> FreeCameraMode {

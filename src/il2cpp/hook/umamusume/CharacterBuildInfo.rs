@@ -303,6 +303,8 @@ static mut CONTROLLER_TYPE_FIELD: *mut FieldInfo = 0 as _;
 static mut HEAD_MODEL_SUB_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut MOTION_DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut USE_DRESS_DATA_HEAD_FIELD: *mut FieldInfo = 0 as _;
+static mut BODY_MODEL_SUB_ID_FIELD: *mut FieldInfo = 0 as _;
+static mut MOTION_BODY_MODEL_SUB_ID_FIELD: *mut FieldInfo = 0 as _;
 
 static CBINFO_DUMPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
@@ -372,6 +374,27 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
                     let no = 0i32;
                     set_field_value(this, USE_DRESS_DATA_HEAD_FIELD, &no);
                 }
+
+                // 动作资源按 type 分包，沿用原角色的 type 会去取目标角色没有的那几档。
+                // 用 chara_type 查目标角色在该场景下的 type；查不到就保持原值。
+                if controller_type == UmaControllerType::EventTimeline as i32 {
+                    let orig_type: i32 = get_field_value(this, BODY_MODEL_SUB_ID_FIELD);
+                    if let Some(t) = sql::get_chara_motion_type(chara_id, 3, 0)
+                        .or_else(|| sql::get_chara_motion_type(chara_id, 0, 0))
+                    {
+                        if t != orig_type {
+                            warn!(
+                                "[replace] motion type {} -> {} (chara {})",
+                                orig_type, t, chara_id
+                            );
+                            set_field_value(this, BODY_MODEL_SUB_ID_FIELD, &t);
+                            if !MOTION_BODY_MODEL_SUB_ID_FIELD.is_null() {
+                                set_field_value(this, MOTION_BODY_MODEL_SUB_ID_FIELD, &t);
+                            }
+                        }
+                    }
+                }
+
                 set_field_value(this, MOTION_DRESS_ID_FIELD, &dress_id);
                 let no_card_id = -1;
                 set_field_value(this, CARD_ID_FIELD, &no_card_id);
@@ -419,6 +442,8 @@ fn init_character_build_info(umamusume: *const Il2CppImage) {
         HEAD_MODEL_SUB_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_headModelSubId");
         MOTION_DRESS_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_motionDressId");
         USE_DRESS_DATA_HEAD_FIELD = get_field_from_name(CharacterBuildInfo, c"_isUseDressDataHeadModelSubId");
+        BODY_MODEL_SUB_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_bodyModelSubId");
+        MOTION_BODY_MODEL_SUB_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_motionBodyModelSubId");
     }
 }
 

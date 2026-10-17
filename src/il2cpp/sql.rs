@@ -1197,6 +1197,17 @@ fn get_single_column_int(sql: &str) -> Vec<i32> {
     items
 }
 
+/// 查 chara_type 表：角色在某个场景/切分下的动作 type 号。
+/// 动作资源按 type 分包（3d/motion/{用途}/body/type{NN}），目标角色缺原角色
+/// 那几档 type 时装配会卡住，所以替换后要按目标角色自己的 type 走。
+pub fn get_chara_motion_type(chara_id: i32, scene: i32, cut: i32) -> Option<i32> {
+    let sql = format!(
+        "SELECT value FROM chara_type WHERE chara_id={} AND target_scene={} AND target_cut={} LIMIT 1",
+        chara_id, scene, cut
+    );
+    get_single_column_int(&sql).first().copied()
+}
+
 pub fn get_all_chara_ids() -> Vec<i32> {
     get_single_column_int("SELECT id FROM chara_data")
 }
