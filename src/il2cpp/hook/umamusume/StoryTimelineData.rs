@@ -118,7 +118,10 @@ pub fn on_LoadAsset(_bundle: *mut Il2CppObject, this: *mut Il2CppObject, name: &
 
     let base_path = name[ASSET_PATH_PREFIX.len()..].path_basename();
 
-    replace_story_chara_tracks(this);
+    let bp = base_path.to_string();
+    let is_80 = bp.contains("/80/") || bp.starts_with("story/data/80");
+    SKIP_CUTSCENE_REPLACE.store(is_80, Ordering::Release);
+    replace_story_chara_tracks(this, &bp);
 
 
     let dict_path = base_path.to_string() + ".json";
@@ -303,12 +306,19 @@ fn get_typewrite_length(text_len: usize, tcps: f32) -> i32 {
     (text_len as f32 / tcps * 30.0).round() as i32 // len / cps * fps
 }
 
-fn replace_story_chara_tracks(this: *mut Il2CppObject) {
+fn replace_story_chara_tracks(this: *mut Il2CppObject, base_path: &str) {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
     let char_replace = &config.replace_global_char;
 
     if !char_replace.enable || char_replace.data.is_empty() {
+        return;
+    }
+
+    // 80 段 = 支援卡随机事件（如「成长的灵感」）。这类事件的过场替换会让游戏
+    // 卡在加载阶段（资源齐全但装配流程不推进），整段跳过替换。
+    if SKIP_CUTSCENE_REPLACE.load(Ordering::Acquire) {
+        debug!("[story] 跳过 80 段（支援卡事件）: {}", base_path);
         return;
     }
 
