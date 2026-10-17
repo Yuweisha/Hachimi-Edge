@@ -146,6 +146,17 @@ pub fn force_goto_home() {
         return;
     }
 
+    // 退出自由相机场景，否则它继续截获输入，回到大厅后点不动
+    #[cfg(target_os = "windows")]
+    {
+        use crate::windows::free_camera::{self, CameraScene};
+        let current = free_camera::scene();
+        if matches!(current, CameraScene::Live | CameraScene::Race) {
+            free_camera::end_scene(current);
+            warn!("[recover] force_goto_home: 已退出自由相机场景 {:?}", current);
+        }
+    }
+
     warn!("[recover] force_goto_home -> Home (view {})", ViewId::Home as i32);
     unsafe {
         if jp {

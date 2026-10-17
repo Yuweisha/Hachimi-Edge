@@ -48,6 +48,8 @@ cherry_blossom: "Sakura"
 ordinal: "%{n}%{suffix}"
 
 menu:
+  return_to_lobby: "Recover: Return to Lobby"
+  force_goto_title: "Recover: Force Title Screen"
   check_for_updates: "\uf0aa Check for updates"
   fps_text: "FPS: %{fps}"
   close_menu: "\uf00d Close menu"

@@ -47,6 +47,8 @@ cherry_blossom: "樱"
 ordinal: "第%{n}名"
 
 menu:
+  return_to_lobby: "脱困：回到大厅"
+  force_goto_title: "脱困：强制回标题"
   check_for_updates: "\uf0aa 检查更新"
   fps_text: "帧率: %{fps}"
   close_menu: "\uf00d 关闭菜单"

@@ -3825,6 +3825,15 @@ impl Gui {
                     }
                     ui.separator();
 
+                    if ui.button(t!("menu.return_to_lobby")).clicked() {
+                        crate::il2cpp::hook::umamusume::SceneManager::force_goto_home();
+                    }
+                    #[cfg(target_os = "windows")]
+                    if ui.button(t!("menu.force_goto_title")).clicked() {
+                        crate::il2cpp::hook::umamusume::ErrorSkip::force_goto_title();
+                    }
+                    ui.separator();
+
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.heading(t!("menu.stats_heading"));
                         ui.label(&self.fps_text);
@@ -8148,26 +8157,6 @@ impl Window for FreeCameraSettingsWindow {
 
                                 ui.label(t!("free_camera.gamepad_look_speed"));
                                 ui.add(egui::DragValue::new(&mut cfg.gamepad_look_speed).speed(0.05).range(0.1..=10.0));
-                                ui.end_row();
-
-                                ui.vertical(|ui| {
-                                    ui.add_space(8.0 * scale);
-                                    ui.heading(t!("free_camera.section_recover"));
-                                    ui.separator();
-                                });
-                                ui.end_row();
-
-                                ui.label(t!("free_camera.force_goto_home"));
-                                if ui.button(t!("free_camera.force_goto_home_btn")).clicked() {
-                                    crate::il2cpp::hook::umamusume::SceneManager::force_goto_home();
-                                }
-                                ui.end_row();
-
-                                ui.label(t!("free_camera.force_goto_title"));
-                                #[cfg(target_os = "windows")]
-                                if ui.button(t!("free_camera.force_goto_title_btn")).clicked() {
-                                    crate::il2cpp::hook::umamusume::ErrorSkip::force_goto_title();
-                                }
                                 ui.end_row();
 
                                 ui.vertical(|ui| {

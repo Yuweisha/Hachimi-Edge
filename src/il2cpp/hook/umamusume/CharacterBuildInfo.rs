@@ -314,16 +314,27 @@ unsafe fn dump_build_info(this: *mut Il2CppObject, tag: &str) {
         return;
     }
     let mut parts: Vec<String> = Vec::new();
-    for f in FieldsIter::new(klass) {
-        let name = std::ffi::CStr::from_ptr((*f).name).to_string_lossy().to_string();
-        let off = (*f).offset;
-        if off <= 0 || off > 0x400 {
-            continue;
+    let mut klass_name = String::new();
+    // 实际类型可能是子类，字段散在父类链上 —— 逐级向上收集
+    let mut k = klass;
+    let mut depth = 0;
+    while !k.is_null() && depth < 8 {
+        if depth == 0 {
+            klass_name = std::ffi::CStr::from_ptr((*k).name).to_string_lossy().to_string();
         }
-        let v: i32 = *((this as usize + off as usize) as *const i32);
-        parts.push(format!("{}={}", name, v));
+        for f in FieldsIter::new(k) {
+            let name = std::ffi::CStr::from_ptr((*f).name).to_string_lossy().to_string();
+            let off = (*f).offset;
+            if off <= 0 || off > 0x800 {
+                continue;
+            }
+            let v: i32 = *((this as usize + off as usize) as *const i32);
+            parts.push(format!("{}={}", name, v));
+        }
+        k = crate::il2cpp::api::il2cpp_class_get_parent(k);
+        depth += 1;
     }
-    warn!("[cbinfo] {} [{}]", tag, parts.join(", "));
+    warn!("[cbinfo] {} ({}) [{}]", tag, klass_name, parts.join(", "));
 }
 
 type CharacterBuildInfoRebuildFn = extern "C" fn(this: *mut Il2CppObject);
