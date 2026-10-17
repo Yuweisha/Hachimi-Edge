@@ -79,7 +79,17 @@ extern "C" fn LoadAssetAsync_Internal(this: *mut Il2CppObject, name: *mut Il2Cpp
 type OnLoadAssetFn = fn(bundle: *mut Il2CppObject, asset: *mut Il2CppObject, name: &Utf16Str);
 pub fn on_LoadAsset(bundle: *mut Il2CppObject, asset: *mut Il2CppObject, name: *mut Il2CppString) {
     let class = unsafe { (*asset).klass() };
-    //debug!("{} {}", unsafe { std::ffi::CStr::from_ptr((*class).name).to_str().unwrap() }, unsafe { (*name).as_utf16str() });
+    // 诊断（临时）：把角色/动作相关的资源加载全打出来
+    if !name.is_null() {
+        let res_name = unsafe { (*name).as_utf16str() }.to_string();
+        let class_name = unsafe { std::ffi::CStr::from_ptr((*class).name).to_str().unwrap_or("?") };
+        let interesting = ["pfb", "chr", "bdy", "motion", "anm_", "tail", "hair", "skel"]
+            .iter()
+            .any(|k| res_name.to_lowercase().contains(k));
+        if interesting {
+            warn!("[asset] {:>28} | {}", class_name, res_name);
+        }
+    }
 
     let handler: OnLoadAssetFn = if class == GameObject::class() {
         GameObject::on_LoadAsset

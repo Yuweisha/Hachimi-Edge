@@ -3,6 +3,7 @@ pub mod TextId;
 pub mod StoryRaceTextAsset;
 mod LyricsController;
 pub mod StoryTimelineData;
+mod ErrorSkip;
 pub mod StoryTimelineBlockData;
 pub mod StoryTimelineTrackData;
 pub mod StoryTimelineTextClipData;
@@ -359,4 +360,5 @@ pub fn init() {
     DownloadPathRegister::init(image);
     MasterDataManager::init(image);
     MasterItemExchangeTop::init(image);
+    ErrorSkip::init(image);
 }

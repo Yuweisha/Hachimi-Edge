@@ -1,24 +1,12 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-
-/// 赛后 CutIn 的跳过时间窗（毫秒）：紧跟在比赛场景标记之后的特写才跳过
-const RACE_CUTIN_WINDOW_MS: u64 = 2_000;
-
-/// 最近一次比赛场景标记（Race / Orig）的时间戳
-static LAST_RACE_MS: AtomicU64 = AtomicU64::new(0);
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
+use std::ffi::CStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     core::{hachimi::GlobalCharReplaceConfig, Hachimi},
     il2cpp::symbols::Thread,
     il2cpp::{
         sql,
-        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value},
+        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value, FieldsIter},
         types::*,
     },
 };
@@ -88,6 +76,13 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
+/// 按原服装的"类型"挑目标角色的对应套，而不是一路套用条目里写死的那件。
+///
+/// 通用服装（id < 100000，泳装/体操服这些全角色共享的）原样返回 —— 泳池场景本来该穿
+/// 泳装，硬换成决胜服就穿帮了。
+///
+/// 场景要的是**默认套**（head_sub_id = 0，也就是决胜服）时，用规则里指定的那件：
+/// 那是用户自己挑的，比对类型更符合预期。只有非默认套才按 head_sub_id 去目标角色身上找。
 fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
     if orig_dress_id < 100000 {
         return orig_dress_id;
@@ -95,7 +90,9 @@ fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id:
 
     let want_head_sub = sql::get_head_id_from_dress_id(orig_dress_id);
 
-    if want_head_sub == 0 && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id {
+    if want_head_sub == 0
+        && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id
+    {
         return preferred_dress_id;
     }
 
@@ -185,32 +182,6 @@ fn replace_char_controller(
         return false;
     }
 
-    // 育成事件（EventTimeline）：只有用专属服装的演出（角色专属动作）跳过替换；
-    // 通用服装（训练服等）的剧情正常替换
-    if controller_type == UmaControllerType::EventTimeline as i32 && *dress_id >= 100000 {
-        return false;
-    }
-
-    // 比赛相关场景（Race / Orig）刷新时间戳
-    if controller_type == UmaControllerType::Race as i32
-        || controller_type == UmaControllerType::Orig as i32
-    {
-        LAST_RACE_MS.store(now_ms(), Ordering::Relaxed);
-    }
-
-    // 比赛（Race）不替换：替换会导致渲染异常（色块），且会持续污染后续画面
-    if controller_type == UmaControllerType::Race as i32 {
-        return false;
-    }
-
-    // 赛后特写（CutIn）不替换：比赛结算演出会卡住；其他场景的 CutIn 正常替换
-    if controller_type == UmaControllerType::CutIn as i32 {
-        let race_ms = LAST_RACE_MS.load(Ordering::Relaxed);
-        if race_ms > 0 && now_ms().saturating_sub(race_ms) < RACE_CUTIN_WINDOW_MS {
-            return false;
-        }
-    }
-
     if !char_replace.replace_in_cutscene
         && matches!(
             controller_type,
@@ -245,6 +216,13 @@ fn replace_char_controller(
     false
 }
 
+/// 当前场景类型，供资源层判断是不是过场（过场只换模型、不换角色数据）。
+pub static CURRENT_CONTROLLER_TYPE: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(-1);
+
+static mut BUILD_INFO_CLASS: *mut Il2CppClass = 0 as _;
+static DUMPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 static mut CHARA_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut CARD_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
@@ -259,13 +237,43 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
             let mut chara_id: i32 = get_field_value(this, CHARA_ID_FIELD);
             let mut dress_id: i32 = get_field_value(this, DRESS_ID_FIELD);
             let controller_type: i32 = get_field_value(this, CONTROLLER_TYPE_FIELD);
+            CURRENT_CONTROLLER_TYPE.store(controller_type, Ordering::Release);
             let mut head_model_sub_id: i32 = get_field_value(this, HEAD_MODEL_SUB_ID_FIELD);
+            let orig_motion_dress_id: i32 = get_field_value(this, MOTION_DRESS_ID_FIELD);
+            let (orig_chara, orig_dress, orig_head) = (chara_id, dress_id, head_model_sub_id);
+
+            if controller_type == 3 && !DUMPED.swap(true, Ordering::Relaxed) {
+                warn!("[dump] === CharacterBuildInfo 全部字段 ===");
+                for f in FieldsIter::new(BUILD_INFO_CLASS) {
+                    unsafe {
+                        let name = CStr::from_ptr((*f).name).to_string_lossy().to_string();
+                        let off = (*f).offset;
+                        if off <= 0 || off > 0x200 { continue; }
+                        let v: i32 = *((this as usize + off as usize) as *const i32);
+                        warn!("[dump] {:<34} off={:<4} i32={}", name, off, v);
+                    }
+                }
+            }
 
             if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false) {
+                debug!(
+                    "[replace] ctrl={} chara={} dress={} motionDress={} head={} -> chara={} dress={} head={}",
+                    controller_type, orig_chara, orig_dress, orig_motion_dress_id, orig_head, chara_id, dress_id, head_model_sub_id
+                );
+
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);
                 set_field_value(this, DRESS_ID_FIELD, &dress_id);
                 set_field_value(this, HEAD_MODEL_SUB_ID_FIELD, &head_model_sub_id);
-                set_field_value(this, MOTION_DRESS_ID_FIELD, &dress_id);
+
+                // 动作 dress 决定游戏去哪个角色身上取动作，不能一路套用新服装：
+                // 通用服装（泳装这类，< 100000）保持原样，专属服装才跟着角色一起换。
+                let new_motion_dress_id = if orig_motion_dress_id < 100000 || orig_motion_dress_id == dress_id {
+                    orig_motion_dress_id
+                } else {
+                    dress_id
+                };
+                set_field_value(this, MOTION_DRESS_ID_FIELD, &new_motion_dress_id);
+
                 let no_card_id = -1;
                 set_field_value(this, CARD_ID_FIELD, &no_card_id);
             }
@@ -305,6 +313,7 @@ fn init_character_build_info(umamusume: *const Il2CppImage) {
     new_hook!(CharacterBuildInfo_Rebuild_addr, CharacterBuildInfo_Rebuild);
 
     unsafe {
+        BUILD_INFO_CLASS = CharacterBuildInfo;
         CHARA_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_charaId");
         CARD_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_cardId");
         DRESS_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_dressId");
