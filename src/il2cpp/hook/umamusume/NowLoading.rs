@@ -57,6 +57,38 @@ extern "C" fn Hide(this: *mut Il2CppObject, onComplete: *mut Il2CppDelegate, ove
     }
 }
 
+
+static mut HIDE_ADDR: usize = 0;
+static mut CLASS: *mut Il2CppClass = 0 as _;
+
+/// 强制收起 loading 遮罩。场景卡死时游戏仍认为自己还在加载，遮罩和它的输入
+/// 拦截都不会自动消失；脱困流程先调这个再切场景。
+pub fn force_hide() {
+    unsafe {
+        if HIDE_ADDR == 0 || CLASS.is_null() {
+            warn!("[recover] NowLoading.force_hide: 未初始化");
+            return;
+        }
+        let Some(singleton) = crate::il2cpp::symbols::SingletonLike::new(CLASS) else {
+            return;
+        };
+        let this = singleton.instance();
+        if this.is_null() {
+            return;
+        }
+        type HideFn = extern "C" fn(
+            this: *mut Il2CppObject,
+            on_complete: *mut Il2CppObject,
+            override_duration: *mut Il2CppObject,
+            ease_type: i32,
+            on_unload: *mut Il2CppObject,
+        );
+        let f: HideFn = std::mem::transmute(HIDE_ADDR);
+        warn!("[recover] NowLoading.force_hide");
+        f(this, std::ptr::null_mut(), std::ptr::null_mut(), 0, std::ptr::null_mut());
+    }
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, NowLoading);
 
@@ -70,5 +102,7 @@ pub fn init(umamusume: *const Il2CppImage) {
 
     unsafe {
         _COMICTITLE_FIELD = get_field_from_name(NowLoading, c"_comicTitle");
+        CLASS = NowLoading;
+        HIDE_ADDR = hide_addr;
     }
 }

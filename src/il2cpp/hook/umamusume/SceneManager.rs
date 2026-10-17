@@ -146,6 +146,9 @@ pub fn force_goto_home() {
         return;
     }
 
+    // 游戏卡在加载态时，NowLoading 遮罩会一直挂着并吞掉输入；先收掉
+    super::NowLoading::force_hide();
+
     // 退出自由相机场景，否则它继续截获输入，回到大厅后点不动
     #[cfg(target_os = "windows")]
     {

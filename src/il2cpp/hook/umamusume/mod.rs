@@ -57,7 +57,7 @@ mod CharacterNoteTopView;
 mod CharacterNoteTopViewController;
 mod ViewControllerBase;
 mod ButtonCommon;
-mod NowLoading;
+pub mod NowLoading;
 pub mod StoryTimelineController;
 mod DialogRaceOrientation;
 pub mod RaceDefine;
