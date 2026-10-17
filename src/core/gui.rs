@@ -8073,12 +8073,10 @@ impl Window for FreeCameraSettingsWindow {
         let mode_free = t!("free_camera.mode_free");
         let mode_first_person = t!("free_camera.mode_first_person");
         let mode_selfie_stick = t!("free_camera.mode_selfie_stick");
-        let mode_restore = t!("free_camera.mode_restore");
         let mode_choices = [
             (FreeCameraMode::Free, mode_free.as_ref()),
             (FreeCameraMode::FirstPerson, mode_first_person.as_ref()),
             (FreeCameraMode::SelfieStick, mode_selfie_stick.as_ref()),
-            (FreeCameraMode::Restore, mode_restore.as_ref()),
         ];
         let live_position_choices: Vec<(i32, &str)> = free_camera::LIVE_POSITION_CHOICES
             .iter()

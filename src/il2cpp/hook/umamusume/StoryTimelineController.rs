@@ -200,10 +200,61 @@ unsafe fn hook_story_view(umamusume: *const Il2CppImage) {
     }
 }
 
+
+// ---- 协程状态机探针：<PlayStory>d__47 / <SetupStoryTimeline>d__48 / <OnPlayStory>d__43 ----
+static MOVE_NEXT_TRACE: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+
+type MoveNextFn = extern "C" fn(this: *mut Il2CppObject) -> bool;
+extern "C" fn MoveNext_Hook(this: *mut Il2CppObject) -> bool {
+    let n = MOVE_NEXT_TRACE.fetch_add(1, atomic::Ordering::Relaxed);
+    let run = get_orig_fn!(MoveNext_Hook, MoveNextFn)(this);
+    // 只在前 200 次和之后每 200 次打，避免刷爆
+    if n < 200 || n % 200 == 0 {
+        warn!("[story-coroutine] MoveNext #{} -> {}", n, run);
+    }
+    run
+}
+
+unsafe fn hook_story_coroutines(umamusume: *const Il2CppImage) {
+    use std::ffi::CStr;
+    let count = crate::il2cpp::api::il2cpp_image_get_class_count(umamusume);
+    let mut hooked = 0;
+    for i in 0..count {
+        let klass = crate::il2cpp::api::il2cpp_image_get_class(umamusume, i);
+        if klass.is_null() {
+            continue;
+        }
+        let name = CStr::from_ptr((*klass).name).to_string_lossy();
+        let interesting = name.contains("<PlayStory>d__")
+            || name.contains("<SetupStoryTimeline>d__")
+            || name.contains("<OnPlayStory>d__");
+        if !interesting {
+            continue;
+        }
+        let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
+        loop {
+            let m = crate::il2cpp::api::il2cpp_class_get_methods(klass as *mut _, &mut iter);
+            if m.is_null() {
+                break;
+            }
+            let mname = CStr::from_ptr((*m).name).to_string_lossy();
+            if mname == "MoveNext" {
+                let addr = (*m).methodPointer as usize;
+                if addr != 0 {
+                    new_hook!(addr, MoveNext_Hook);
+                    hooked += 1;
+                    warn!("[story-coroutine] hooked {}::MoveNext", name);
+                }
+            }
+        }
+    }
+    warn!("[story-coroutine] total hooked {}", hooked);
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, StoryTimelineController);
 
-    unsafe { dump_story_classes(umamusume); hook_story_view(umamusume); }
+    unsafe { hook_story_coroutines(umamusume); }
 
     let GotoBlock_addr = get_method_addr(StoryTimelineController, c"GotoBlock", 4);
 
