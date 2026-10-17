@@ -34,8 +34,6 @@ pub enum UmaControllerType {
 }
 
 fn is_replacable(controller_type: i32) -> bool {
-    // Orig（0x1919810）是 BuildChara 构建"原始/参考角色"时用的类型：
-    // 它是动画重定向的目标骨架，替换掉会让动作绑定失效（角色摊成 T-pose）。
     if controller_type == UmaControllerType::Orig as i32 {
         return false;
     }
@@ -62,8 +60,6 @@ fn dress_belongs_to(dress_id: i32, chara_id: i32) -> bool {
 }
 
 fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
-    // 通用服装（运动服/泳装等，id < 100000）全角色共享，不存在"属于谁"的问题，
-    // 也不能因为换了角色就改成目标角色的专属服装（训练场/Live 会穿帮）。
     if *dress_id < 100000 {
         return;
     }
@@ -86,17 +82,20 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
+const SHARED_UNIVERSAL_DRESSES: &[i32] = &[3, 9];
+
+fn is_universal_dress(dress_id: i32) -> bool {
+    if sql::is_general_purpose_dress(dress_id) {
+        return true;
+    }
+    SHARED_UNIVERSAL_DRESSES.contains(&dress_id)
+}
+
 pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
     let base = target_chara_id * 100;
 
-    // 通用服装（id < 100000）不都真的"全角色通用"：只有 body_type 与目标角色
-    // 默认套一致的才能直接穿（运动服 body_type 2、拉面店制服 3 这类）。
-    // 反例：dress 56 chara_id 也是 0，但 body_type = 19，体型 100 的角色穿上后
-    // 骨骼绑定不上 → 加载无限等待。
     if orig_dress_id < 100000 {
-        let orig_body = sql::get_body_type_from_dress_id(orig_dress_id);
-        let target_body = sql::get_default_body_type(target_chara_id);
-        if orig_body == 0 || target_body == 0 || orig_body == target_body {
+        if is_universal_dress(orig_dress_id) {
             return orig_dress_id;
         }
         let fallback = base + 1;
@@ -127,12 +126,6 @@ pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress
     orig_dress_id
 }
 
-/// 轨道替换（story 加载阶段）专用：那时 CURRENT_CONTROLLER_TYPE 还没被设置，
-/// 无法靠它判断场景。
-///
-/// 通用服装（id < 100000，拉面店制服/运动服/泳装这类全角色共享的）一律原样保留 ——
-/// 它们对任何角色都成立，换掉反而穿帮（拉面店剧情里四人都穿制服，只有主角换了决胜服）。
-/// 只有专属服装（>= 100000，属于原角色）才需要按类型换成目标角色的对应套。
 pub fn auto_pick_dress_for_track(
     orig_dress_id: i32,
     target_chara_id: i32,
@@ -140,9 +133,7 @@ pub fn auto_pick_dress_for_track(
 ) -> i32 {
     let base = target_chara_id * 100;
     if orig_dress_id < 100000 {
-        let orig_body = sql::get_body_type_from_dress_id(orig_dress_id);
-        let target_body = sql::get_default_body_type(target_chara_id);
-        if orig_body == 0 || target_body == 0 || orig_body == target_body {
+        if is_universal_dress(orig_dress_id) {
             return orig_dress_id;
         }
         let fallback = base + 1;
@@ -302,7 +293,6 @@ fn replace_char_controller(
     false
 }
 
-/// 当前场景类型，供资源层判断是不是过场（过场只换模型、不换角色数据）。
 pub static CURRENT_CONTROLLER_TYPE: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
 
