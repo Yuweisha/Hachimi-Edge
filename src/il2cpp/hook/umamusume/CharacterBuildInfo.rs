@@ -302,6 +302,7 @@ static mut DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut CONTROLLER_TYPE_FIELD: *mut FieldInfo = 0 as _;
 static mut HEAD_MODEL_SUB_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut MOTION_DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
+static mut USE_DRESS_DATA_HEAD_FIELD: *mut FieldInfo = 0 as _;
 
 static CBINFO_DUMPS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
@@ -364,6 +365,13 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);
                 set_field_value(this, DRESS_ID_FIELD, &dress_id);
                 set_field_value(this, HEAD_MODEL_SUB_ID_FIELD, &head_model_sub_id);
+                // 游戏默认按 dress_data[dressId].head_sub_id 反推头部变体；dress 换掉之后
+                // 那个值仍指向原服装的子类型（100230 -> 30），导致资源加载 chr{原角色}_30
+                // 与替换后的骨架对不上。清 0 让游戏只用我们写好的 _headModelSubId。
+                if !USE_DRESS_DATA_HEAD_FIELD.is_null() {
+                    let no = 0i32;
+                    set_field_value(this, USE_DRESS_DATA_HEAD_FIELD, &no);
+                }
                 set_field_value(this, MOTION_DRESS_ID_FIELD, &dress_id);
                 let no_card_id = -1;
                 set_field_value(this, CARD_ID_FIELD, &no_card_id);
@@ -410,6 +418,7 @@ fn init_character_build_info(umamusume: *const Il2CppImage) {
         CONTROLLER_TYPE_FIELD = get_field_from_name(CharacterBuildInfo, c"_controllerType");
         HEAD_MODEL_SUB_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_headModelSubId");
         MOTION_DRESS_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_motionDressId");
+        USE_DRESS_DATA_HEAD_FIELD = get_field_from_name(CharacterBuildInfo, c"_isUseDressDataHeadModelSubId");
     }
 }
 

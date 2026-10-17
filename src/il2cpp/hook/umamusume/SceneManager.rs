@@ -150,11 +150,15 @@ pub fn force_goto_home() {
     #[cfg(target_os = "windows")]
     {
         use crate::windows::free_camera::{self, CameraScene};
-        let current = free_camera::scene();
-        if matches!(current, CameraScene::Live | CameraScene::Race) {
-            free_camera::end_scene(current);
-            warn!("[recover] force_goto_home: 已退出自由相机场景 {:?}", current);
+        // 两个场景都显式结束：只按 free_camera::scene() 判断会漏掉状态不同步的情况，
+        // 而残留的 scene 会让 is_game_input_capture_active() 继续为真，鼠标点击被吞。
+        for s in [CameraScene::Live, CameraScene::Race] {
+            free_camera::end_scene(s);
         }
+        warn!(
+            "[recover] force_goto_home: 已重置自由相机（当前 scene={:?}）",
+            free_camera::scene()
+        );
     }
 
     warn!("[recover] force_goto_home -> Home (view {})", ViewId::Home as i32);
