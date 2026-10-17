@@ -5,6 +5,10 @@ use crate::{
 
 type GetSingCharaIdListFn = extern "C" fn(songId: i32, songPartNumber: i32, allCharaIdArray: *mut Il2CppArray, vocalCharaIdArray: *mut Il2CppArray, shuffledCharaDataList: *mut Il2CppObject) -> *mut Il2CppObject;
 extern "C" fn GetSingCharaIdList(songId: i32, songPartNumber: i32, allCharaIdArray: *mut Il2CppArray, vocalCharaIdArray: *mut Il2CppArray, shuffledCharaDataList: *mut Il2CppObject) -> *mut Il2CppObject {
+    if songId > 0 {
+        info!("[live] song={} part={}", songId, songPartNumber);
+    }
+
     let config = Hachimi::instance().config.load();
     let chara_vo_ids = config.live_vocals_swap_presets.get(&songId).unwrap_or(&config.live_vocals_swap);
     let replace = &config.replace_global_char;
