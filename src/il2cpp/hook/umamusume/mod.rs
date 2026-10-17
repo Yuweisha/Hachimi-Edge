@@ -68,6 +68,7 @@ mod LiveTheaterCharaSelect;
 mod LiveTheaterViewController;
 mod LiveTheaterUnlock;
 mod CharacterNoteUnlock;
+pub mod MovieProbe;
 pub mod CySpringController;
 mod LiveUtil;
 pub mod MasterDataUtil;
@@ -257,6 +258,7 @@ pub fn init() {
     LiveTheaterViewController::init(image);
     LiveTheaterUnlock::init(image);
     CharacterNoteUnlock::init(image);
+    MovieProbe::init(image);
     CySpringController::init(image);
     LiveUtil::init(image);
     MasterDataUtil::init(image);

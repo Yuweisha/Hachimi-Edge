@@ -56,6 +56,14 @@ fn setup_version_env() {
     }
 
     version_str.push_str("-bv");
+
+    // Optional experimental build tag (e.g. HACHIMI_BUILD_TAG=exp-0830) to
+    // distinguish locally built experimental dlls from commit-only versions.
+    if let Ok(tag) = std::env::var("HACHIMI_BUILD_TAG") {
+        version_str.push('-');
+        version_str.push_str(&tag);
+    }
+
     println!("cargo:rustc-env=HACHIMI_DISPLAY_VERSION={}", version_str);
 }
 

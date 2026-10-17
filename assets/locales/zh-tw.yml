@@ -43,6 +43,7 @@ menu:
   open_first_time_setup: "\uf135 開啟設定精靈"
   graphics_heading: "\uf03e 圖像"
   fps_label: "FPS"
+  fov_label: "特寫FOV"
   vsync_label: "垂直同步"
   stay_on_top: "保持在最上層"
   translation_heading: "\uf02d 翻譯"
@@ -121,6 +122,9 @@ config_editor:
   char_replace_empty:
   char_replace_add: "\uf067 新增規則"
   bv_unlock_all: "解鎖未擁有的賽馬娘與服裝（Live 劇場）"
+  cutin_fov_scale: "特寫FOV（鏡頭偏移對抗）"
+  cutin_progress_slider: "啟用動畫進度條"
+  cutin_block_ui_events: "機器學習：自動屏蔽名稱遮罩"
   language: "語言"
   disable_overlay: "禁用覆蓋層 (GUI)"
   disable_overlay_warning: >-

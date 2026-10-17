@@ -173,6 +173,7 @@ pub struct Gui {
 
     live_slider_text: String,
     race_slider_text: String,
+    cutin_slider_text: String,
     update_progress_text: String,
 
     notifications: Vec<Notification>,
@@ -189,6 +190,7 @@ pub static WANTS_INPUT: AtomicBool = AtomicBool::new(false);
 pub static EGUI_TYPING: AtomicBool = AtomicBool::new(false);
 pub static IS_LIVE_SCENE: AtomicBool = AtomicBool::new(false);
 pub static IS_LIVE_SLIDER_ACTIVE: AtomicBool = AtomicBool::new(false);
+pub static IS_CUTIN_SLIDER_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 static RACE_SLIDER_DRAGGING: AtomicBool = AtomicBool::new(false);
 
@@ -2915,6 +2917,7 @@ impl Gui {
 
             live_slider_text: String::new(),
             race_slider_text: String::new(),
+            cutin_slider_text: String::new(),
             update_progress_text: String::new(),
 
             notifications: Vec::new(),
@@ -3188,6 +3191,66 @@ impl Gui {
         }
 
         true
+    }
+
+    fn run_cutin_slider(&mut self, ctx: &egui::Context) {
+        use crate::il2cpp::hook::umamusume::MovieProbe;
+
+        IS_CUTIN_SLIDER_ACTIVE.store(false, atomic::Ordering::Release);
+
+        if !Hachimi::instance().config.load().cutin_progress_slider {
+            return;
+        }
+        if !MovieProbe::cutin_active() {
+            return;
+        }
+
+        let current = MovieProbe::cutin_current_time();
+        let total = MovieProbe::cutin_total_time();
+        if total <= 0.01 {
+            return;
+        }
+
+        IS_CUTIN_SLIDER_ACTIVE.store(true, atomic::Ordering::Release);
+
+        let scale = get_scale(ctx);
+        let mut cur = current.clamp(0.0, total);
+        egui::Area::new(egui::Id::new("cutin_slider_area"))
+            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-20.0 * scale, -40.0 * scale))
+            .show(ctx, |ui| {
+                egui::Frame::window(&ctx.style())
+                    .fill(egui::Color32::from_black_alpha(150))
+                    .inner_margin(egui::Margin::symmetric((16.0 * scale) as i8, (8.0 * scale) as i8))
+                    .corner_radius(10.0 * scale)
+                    .show(ui, |ui| {
+                        ui.set_width(ctx.content_rect().width() * 0.42);
+                        ui.horizontal(|ui| {
+                            let curr_m = (cur / 60.0).floor() as i32;
+                            let curr_s = (cur % 60.0).floor() as i32;
+                            let tot_m = (total / 60.0).floor() as i32;
+                            let tot_s = (total % 60.0).floor() as i32;
+                            self.cutin_slider_text.clear();
+                            let _ = write!(self.cutin_slider_text, "{:02}:{:02} / {:02}:{:02}", curr_m, curr_s, tot_m, tot_s);
+                            ui.label(&self.cutin_slider_text);
+
+                            let available_w = ui.available_width();
+                            ui.scope(|ui| {
+                                ui.spacing_mut().slider_width = available_w - (16.0 * scale);
+                                let res = ui.add(
+                                    egui::Slider::new(&mut cur, 0.0..=total)
+                                        .show_value(false)
+                                        .trailing_fill(true)
+                                );
+                                if res.changed() {
+                                    MovieProbe::cutin_seek(cur);
+                                }
+                                if res.drag_stopped() {
+                                    MovieProbe::cutin_resume();
+                                }
+                            });
+                        });
+                    });
+            });
     }
 
     fn run_race_slider(&mut self, ctx: &egui::Context) {
@@ -3514,6 +3577,7 @@ impl Gui {
         let ctx = self.context.clone();
         self.run_live_slider(&ctx);
         self.run_race_slider(&ctx);
+        self.run_cutin_slider(&ctx);
         Self::run_race_playback_button(&ctx);
         RaceStatHud::run(&ctx);
 
@@ -3703,6 +3767,13 @@ impl Gui {
                                 Thread::main_thread().schedule(|| {
                                     Application::set_targetFrameRate(30);
                                 });
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(t!("menu.fov_label"));
+                            let mut v = crate::il2cpp::hook::umamusume::MovieProbe::fov_rt();
+                            if ui.add(egui::Slider::new(&mut v, 0.5..=3.0).step_by(0.05)).changed() {
+                                crate::il2cpp::hook::umamusume::MovieProbe::set_fov_rt(v);
                             }
                         });
                         #[cfg(target_os = "windows")]
@@ -4270,6 +4341,7 @@ impl Gui {
             !self.splash_visible && !self.menu_visible && !self.update_progress_visible &&
             self.notifications.is_empty() && self.windows.is_empty() &&
             !IS_LIVE_SCENE.load(atomic::Ordering::Acquire) &&
+                        !(Hachimi::instance().config.load().cutin_progress_slider && crate::il2cpp::hook::umamusume::MovieProbe::cutin_active()) &&
             !Self::race_slider_showing() &&
             !Self::race_playback_button_showing() &&
             !free_camera::has_overlay_message() &&
@@ -4282,6 +4354,7 @@ impl Gui {
             !self.splash_visible && !self.menu_visible && !self.update_progress_visible &&
             self.notifications.is_empty() && self.windows.is_empty() &&
             !IS_LIVE_SCENE.load(atomic::Ordering::Acquire) &&
+                        !(Hachimi::instance().config.load().cutin_progress_slider && crate::il2cpp::hook::umamusume::MovieProbe::cutin_active()) &&
             !Self::race_slider_showing() &&
             !Self::race_playback_button_showing() &&
             !RaceStatHud::elements_showing() && !RaceStatHud::is_active() &&
@@ -4291,6 +4364,7 @@ impl Gui {
 
     pub fn is_consuming_input(&self) -> bool {
         self.menu_visible || !self.windows.is_empty() || IS_LIVE_SLIDER_ACTIVE.load(atomic::Ordering::Acquire)
+            || IS_CUTIN_SLIDER_ACTIVE.load(atomic::Ordering::Acquire)
     }
 
     pub fn is_consuming_input_atomic() -> bool {
@@ -6583,6 +6657,19 @@ impl ConfigEditor {
             return;
         }
 
+        // ── BV百宝箱功能组（置顶）
+        ui.checkbox(&mut config.bv_unlock_all, t!("config_editor.bv_unlock_all"));
+        ui.add_space(6.0);
+        ui.label(t!("config_editor.cutin_fov_scale"));
+        ui.add(egui::Slider::new(&mut config.cutin_fov_scale, 0.5..=3.0).step_by(0.05));
+        ui.add_space(6.0);
+        ui.checkbox(&mut config.cutin_progress_slider, t!("config_editor.cutin_progress_slider"));
+        ui.add_space(6.0);
+        ui.checkbox(&mut config.cutin_block_ui_events, t!("config_editor.cutin_block_ui_events"));
+        ui.add_space(10.0);
+        ui.separator();
+        ui.add_space(6.0);
+
         ui.label(t!("config_editor.char_replace_desc"));
         ui.add_space(6.0);
 
@@ -6669,11 +6756,6 @@ impl ConfigEditor {
         if ui.button(t!("config_editor.char_replace_add")).clicked() {
             cfg.data.push(hachimi::GlobalCharReplaceEntry::default());
         }
-
-        ui.add_space(10.0);
-        ui.separator();
-        ui.add_space(6.0);
-        ui.checkbox(&mut config.bv_unlock_all, t!("config_editor.bv_unlock_all"));
     }
 
     fn options_page(&self, ui: &mut egui::Ui, config: &mut hachimi::Config, tab: ConfigEditorTab, scale: f32, column_spacing: f32) {

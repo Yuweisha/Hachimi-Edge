@@ -109,9 +109,58 @@ extern "C" fn get_Loader_hook() -> *mut Il2CppObject {
     loader
 }
 
+extern "system" {
+    fn RtlCaptureStackBackTrace(frames_to_skip: u32, frames_to_capture: u32, back_trace: *mut *mut std::ffi::c_void, back_trace_hash: *mut u32) -> u16;
+}
+
+unsafe fn scan_owner_for(target: usize) {
+    let Ok(image) = get_assembly_image(c"umamusume.dll") else { return; };
+    let count = crate::il2cpp::api::il2cpp_image_get_class_count(image);
+    for i in 0..count {
+        let klass = crate::il2cpp::api::il2cpp_image_get_class(image, i) as *mut Il2CppClass;
+        if klass.is_null() { continue; }
+        let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
+        let mut min_a = usize::MAX;
+        let mut max_a = 0usize;
+        loop {
+            let method = crate::il2cpp::api::il2cpp_class_get_methods(klass, &mut iter);
+            if method.is_null() { break; }
+            let ptr = (*method).methodPointer as usize;
+            if ptr != 0 {
+                if ptr < min_a { min_a = ptr; }
+                if ptr > max_a { max_a = ptr; }
+            }
+        }
+        if min_a != usize::MAX && min_a <= target && target <= max_a + 0x3000 {
+            let name = CStr::from_ptr((*klass).name).to_string_lossy().to_string();
+            let inside = min_a <= target && target <= max_a;
+            info!("[mvres] frame owner: {} [{:#x} ~ {:#x}] {}", name, min_a, max_a, if inside { "INSIDE" } else { "near" });
+        }
+    }
+}
+
+unsafe fn log_cutin_stack() {
+    let mut buf: [*mut std::ffi::c_void; 40] = [std::ptr::null_mut(); 40];
+    let cnt = RtlCaptureStackBackTrace(1, 40, buf.as_mut_ptr(), std::ptr::null_mut());
+    let addrs: Vec<String> = (0..cnt as usize).map(|i| format!("{:#x}", buf[i] as usize)).collect();
+    info!("[mvres] cutin stack: {}", addrs.join(" "));
+}
+
 type LoadAssetHandleFn = extern "C" fn(this: *mut Il2CppObject, path: *mut Il2CppString, flag: bool) -> *mut Il2CppObject;
 extern "C" fn LoadAssetHandle_hook(this: *mut Il2CppObject, path: *mut Il2CppString, flag: bool) -> *mut Il2CppObject {
     let s = unsafe { il2cpp_str(path) };
+    if !s.is_empty() {
+        let sl = s.to_lowercase();
+        if sl.contains("live/") || sl.contains("movie") || sl.contains("_act") || sl.contains("act_") || sl.contains("cutin") || sl.contains("gacha") || sl.contains("banner") || sl.contains("_new") || sl.contains("new_") || sl.contains("star") || sl.contains("title") {
+            info!("[mvres] {}", s);
+        }
+    }
+    if s.starts_with("cutt/cutin/") {
+        unsafe { log_cutin_stack(); }
+    }
+    if s.contains("pf_fl_gacha_icon_new00") || s.contains("fa_gacha_chara_name") || s.contains("gacha_chrname") || s.contains("gacha_comment") {
+        unsafe { log_cutin_stack(); }
+    }
     let remapped = remap_card_path(&s);
     let r = if let Some(ref fixed) = remapped {
         warn!("[crdremap] {} -> {}", s, fixed);
