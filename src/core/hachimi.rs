@@ -971,6 +971,15 @@ pub struct Config {
     #[serde(default = "Config::default_bv_unlock_all")]
     pub bv_unlock_all: bool,
 
+    #[serde(default = "Config::default_cutin_fov_scale")]
+    pub cutin_fov_scale: f32,
+
+    #[serde(default = "Config::default_cutin_progress_slider")]
+    pub cutin_progress_slider: bool,
+
+    #[serde(default = "Config::default_cutin_block_ui_events")]
+    pub cutin_block_ui_events: bool,
+
     // theme settings
     #[serde(default = "Config::default_ui_accent")]
     pub ui_accent_color: egui::Color32,
@@ -1009,6 +1018,9 @@ impl Config {
     fn default_champions_live_year() -> i32 { 2025 }
     pub fn default_ui_accent() -> egui::Color32 { egui::Color32::from_rgb(100, 150, 240) }
     pub fn default_bv_unlock_all() -> bool { true }
+    pub fn default_cutin_fov_scale() -> f32 { 1.0 }
+    pub fn default_cutin_progress_slider() -> bool { true }
+    pub fn default_cutin_block_ui_events() -> bool { true }
     pub fn default_window_fill() -> egui::Color32 { egui::Color32::from_rgba_premultiplied(27, 27, 27, 220) }
     pub fn default_panel_fill() -> egui::Color32 { egui::Color32::from_rgba_premultiplied(27, 27, 27, 220) }
     pub fn default_extreme_bg() -> egui::Color32 { egui::Color32::from_rgb(15, 15, 15) }

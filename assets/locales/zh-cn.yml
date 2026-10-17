@@ -65,6 +65,7 @@ menu:
   open_first_time_setup: "\uf135 打开初始化设置"
   graphics_heading: "\uf03e 图形设置"
   fps_label: "帧率限制"
+  fov_label: "特写FOV"
   vsync_label: "垂直同步"
   stay_on_top: "窗口置顶"
   translation_heading: "\uf02d 翻译"
@@ -163,6 +164,9 @@ config_editor:
   char_replace_empty:
   char_replace_add: "\uf067 添加规则"
   bv_unlock_all: "解锁未拥有的赛马娘与服装（Live 剧场）"
+  cutin_fov_scale: "特写FOV（镜头偏移对抗）"
+  cutin_progress_slider: "启用动画进度条"
+  cutin_block_ui_events: "机器学习：自动屏蔽名称遮罩"
   language: "语言"
   restore_defaults: "恢复默认设置"
   disable_overlay: "禁用覆盖层（GUI）"
