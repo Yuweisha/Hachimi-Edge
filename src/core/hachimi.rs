@@ -9,7 +9,7 @@ use crate::{core::{gui, plugin_api::Plugin, updater}, gui_impl, hachimi_impl, il
 
 use super::{game::{Game, Region}, ipc, plurals, template, template_filters, tl_repo, utils, Error, Interceptor};
 
-pub const REPO_PATH: &str = "Yuweisha/Hachimi-Edge";
+pub const REPO_PATH: &str = "Yuweisha/Hachimi-Edge-BV";
 pub const GITHUB_API: &str = "https://api.github.com/repos";
 pub const CODEBERG_API: &str = "https://codeberg.org/api/v1/repos";
 pub const WEBSITE_URL: &str = "https://hachimi.noccu.art";
