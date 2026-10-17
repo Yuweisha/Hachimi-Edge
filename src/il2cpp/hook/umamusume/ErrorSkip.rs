@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use crate::il2cpp::{symbols::{get_class, get_method_addr}, types::*};
+use crate::il2cpp::{ext::StringExt, symbols::{get_class, get_method_addr}, types::*};
 
 type GotoTitleOnErrorFn = extern "C" fn(text: *mut Il2CppString) -> ();
 static mut ORIG: usize = 0;
@@ -29,6 +29,23 @@ extern "C" fn GotoTitleOnError_hook(text: *mut Il2CppString) {
             let f: GotoTitleOnErrorFn = std::mem::transmute(orig);
             f(text);
         }
+    }
+}
+
+
+/// 强制回标题：直接调游戏的 GallopUtil.GotoTitleOnError。
+/// 场景卡死（无限加载 / 软死）时用来脱身，不需要重启游戏。
+pub fn force_goto_title() {
+    unsafe {
+        let orig = ORIG;
+        if orig == 0 {
+            warn!("[errskip] force_goto_title: hook 未安装");
+            return;
+        }
+        let text = "返回标题".to_il2cpp_string();
+        let f: GotoTitleOnErrorFn = std::mem::transmute(orig);
+        warn!("[errskip] force_goto_title: 强制回标题");
+        f(text);
     }
 }
 

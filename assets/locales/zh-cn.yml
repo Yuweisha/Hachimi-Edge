@@ -366,6 +366,11 @@ race_stat_hud:
 free_camera:
   settings_title: "自由视角设置"
   section_general: "通用"
+  section_recover: "脱困"
+  force_goto_home: "场景卡死时回到大厅（更快，无需重登）"
+  force_goto_home_btn: "回到大厅"
+  force_goto_title: "场景卡死时强制退出"
+  force_goto_title_btn: "强制回标题"
   section_live: "Live 剧场"
   section_race: "比赛"
   section_keybinds: "Windows 按键绑定"

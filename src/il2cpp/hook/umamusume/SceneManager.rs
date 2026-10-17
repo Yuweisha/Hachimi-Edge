@@ -124,6 +124,57 @@ extern "C" fn ChangeViewOther(
     ChangeViewCommon(next_view_id);
 }
 
+
+/// 强制切回大厅（Home view），用于场景卡死时脱身。
+/// 比回标题快，也不用重新登录。
+pub fn force_goto_home() {
+    let this = instance();
+    if this.is_null() {
+        warn!("[recover] force_goto_home: SceneManager 实例为空");
+        return;
+    }
+
+    let jp = Hachimi::instance().game.region == Region::Japan;
+    let addr = if jp {
+        get_method_addr(class(), c"ChangeView", 7)
+    }
+    else {
+        get_method_addr(class(), c"ChangeView", 5)
+    };
+    if addr == 0 {
+        warn!("[recover] force_goto_home: ChangeView 地址未找到");
+        return;
+    }
+
+    warn!("[recover] force_goto_home -> Home (view {})", ViewId::Home as i32);
+    unsafe {
+        if jp {
+            let f: ChangeViewJpfn = std::mem::transmute(addr);
+            f(
+                this,
+                ViewId::Home as i32,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                true,
+                true,
+                0.0,
+            );
+        }
+        else {
+            let f: ChangeViewOtherfn = std::mem::transmute(addr);
+            f(
+                this,
+                ViewId::Home as i32,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                true,
+            );
+        }
+    }
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, SceneManager);
 

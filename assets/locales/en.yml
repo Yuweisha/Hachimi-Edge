@@ -380,6 +380,11 @@ race_stat_hud:
 free_camera:
   settings_title: "Free Camera Settings"
   section_general: "General"
+  section_recover: "Recovery"
+  force_goto_home: "Return to the lobby (faster, no re-login)"
+  force_goto_home_btn: "Return to Lobby"
+  force_goto_title: "Escape a frozen scene"
+  force_goto_title_btn: "Force Return to Title"
   section_live: "Live Theater"
   section_race: "Race"
   section_keybinds: "Windows keybinds"

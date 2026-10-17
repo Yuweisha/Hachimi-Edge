@@ -8152,6 +8152,26 @@ impl Window for FreeCameraSettingsWindow {
 
                                 ui.vertical(|ui| {
                                     ui.add_space(8.0 * scale);
+                                    ui.heading(t!("free_camera.section_recover"));
+                                    ui.separator();
+                                });
+                                ui.end_row();
+
+                                ui.label(t!("free_camera.force_goto_home"));
+                                if ui.button(t!("free_camera.force_goto_home_btn")).clicked() {
+                                    crate::il2cpp::hook::umamusume::SceneManager::force_goto_home();
+                                }
+                                ui.end_row();
+
+                                ui.label(t!("free_camera.force_goto_title"));
+                                #[cfg(target_os = "windows")]
+                                if ui.button(t!("free_camera.force_goto_title_btn")).clicked() {
+                                    crate::il2cpp::hook::umamusume::ErrorSkip::force_goto_title();
+                                }
+                                ui.end_row();
+
+                                ui.vertical(|ui| {
+                                    ui.add_space(8.0 * scale);
                                     ui.heading(t!("free_camera.section_live"));
                                     ui.separator();
                                 });

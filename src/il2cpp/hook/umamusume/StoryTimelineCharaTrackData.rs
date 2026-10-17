@@ -44,18 +44,24 @@ pub fn dump_motion_track_data(this: *mut Il2CppObject, tag: &str) {
                 warn!("[mtdump] {} #{} {} = null", tag, idx, name);
             } else {
                 let klass = (*obj).klass();
-                let klass_name = if klass.is_null() {
-                    "?".to_string()
-                } else {
-                    CStr::from_ptr((*klass).name).to_string_lossy().to_string()
-                };
+                let mut klass_name = "?".to_string();
                 let mut parts: Vec<String> = Vec::new();
-                for f2 in FieldsIter::new(klass) {
-                    let n2 = CStr::from_ptr((*f2).name).to_string_lossy().to_string();
-                    let off = (*f2).offset;
-                    if off <= 0 || off > 0x200 { continue; }
-                    let v: i32 = *((obj as usize + off as usize) as *const i32);
-                    parts.push(format!("{}={}", n2, v));
+                // 字段可能定义在父类里，逐级向上遍历
+                let mut k = klass;
+                let mut depth = 0;
+                while !k.is_null() && depth < 6 {
+                    if depth == 0 {
+                        klass_name = CStr::from_ptr((*k).name).to_string_lossy().to_string();
+                    }
+                    for f2 in FieldsIter::new(k) {
+                        let n2 = CStr::from_ptr((*f2).name).to_string_lossy().to_string();
+                        let off = (*f2).offset;
+                        if off <= 0 || off > 0x400 { continue; }
+                        let v: i32 = *((obj as usize + off as usize) as *const i32);
+                        parts.push(format!("{}={}", n2, v));
+                    }
+                    k = crate::il2cpp::api::il2cpp_class_get_parent(k);
+                    depth += 1;
                 }
                 warn!("[mtdump] {} #{} {} -> {} [{}]", tag, idx, name, klass_name, parts.join(", "));
             }

@@ -4,7 +4,7 @@ pub mod StoryRaceTextAsset;
 mod LyricsController;
 pub mod StoryTimelineData;
 #[cfg(target_os = "windows")]
-mod ErrorSkip;
+pub mod ErrorSkip;
 pub mod StoryTimelineBlockData;
 pub mod StoryTimelineTrackData;
 pub mod StoryTimelineTextClipData;
