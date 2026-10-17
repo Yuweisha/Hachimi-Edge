@@ -1,6 +1,6 @@
 use std::sync::{atomic::{self, AtomicI32}, Mutex};
 
-use crate::{core::Hachimi, il2cpp::{
+use crate::{core::Hachimi, il2cpp::{ext::Il2CppObjectExt, 
     symbols::{get_method_addr, GCHandle},
     types::*,
 }};
@@ -251,10 +251,162 @@ unsafe fn hook_story_coroutines(umamusume: *const Il2CppImage) {
     warn!("[story-coroutine] total hooked {}", hooked);
 }
 
+
+// ---- StoryViewController 生命周期探针（非协程的那些）----
+type LifeFn = extern "C" fn(this: *mut Il2CppObject);
+macro_rules! life_probe {
+    ($hook:ident, $label:literal) => {
+        extern "C" fn $hook(this: *mut Il2CppObject) {
+            warn!("[story-life] {} enter", $label);
+            get_orig_fn!($hook, LifeFn)(this);
+            warn!("[story-life] {} exit", $label);
+        }
+    };
+}
+life_probe!(InitStory, "InitializeStory");
+life_probe!(InitStoryScene, "InitializeStoryScene");
+life_probe!(InitStoryView, "InitializeStoryView");
+life_probe!(InitStoryVC, "InitializeStoryViewController");
+life_probe!(SetupTimeline, "SetupStoryTimeline");
+life_probe!(StoryUpdate, "UpdateView");
+
+unsafe fn hook_story_lifecycle(umamusume: *const Il2CppImage) {
+    use crate::il2cpp::symbols::get_class;
+    use std::ffi::CStr;
+    let Ok(klass) = get_class(umamusume, c"Gallop", c"StoryViewController") else {
+        warn!("[story-life] StoryViewController not found");
+        return;
+    };
+    let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
+    loop {
+        let m = crate::il2cpp::api::il2cpp_class_get_methods(klass as *mut _, &mut iter);
+        if m.is_null() {
+            break;
+        }
+        let name = CStr::from_ptr((*m).name).to_string_lossy().to_string();
+        let argc = crate::il2cpp::api::il2cpp_method_get_param_count(m);
+        if argc != 0 {
+            continue;
+        }
+        let addr = (*m).methodPointer as usize;
+        if addr == 0 {
+            continue;
+        }
+        match name.as_str() {
+            "InitializeStory" => { new_hook!(addr, InitStory); warn!("[story-life] hooked {}", name); },
+            "InitializeStoryScene" => { new_hook!(addr, InitStoryScene); warn!("[story-life] hooked {}", name); },
+            "InitializeStoryView" => { new_hook!(addr, InitStoryView); warn!("[story-life] hooked {}", name); },
+            "InitializeStoryViewController" => { new_hook!(addr, InitStoryVC); warn!("[story-life] hooked {}", name); },
+            "SetupStoryTimeline" => { new_hook!(addr, SetupTimeline); warn!("[story-life] hooked {}", name); },
+            "UpdateView" => { new_hook!(addr, StoryUpdate); warn!("[story-life] hooked {}", name); },
+            _ => {},
+        }
+    }
+}
+
+
+// ---- 批量：所有 Story*/Timeline* 类的 MoveNext ----
+static BULK_TRACE: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+static mut BULK_ORIGS: [usize; 8] = [0; 8];
+
+macro_rules! bulk_hook {
+    ($name:ident, $idx:expr) => {
+        extern "C" fn $name(this: *mut Il2CppObject) -> bool {
+            let n = BULK_TRACE.fetch_add(1, atomic::Ordering::Relaxed);
+            if n < 300 || n % 300 == 0 {
+                let kname = unsafe {
+                    let klass = (*this).klass();
+                    if klass.is_null() {
+                        "?".to_string()
+                    }
+                    else {
+                        std::ffi::CStr::from_ptr((*klass).name)
+                            .to_string_lossy()
+                            .to_string()
+                    }
+                };
+                warn!("[bulk-move] #{} {}::MoveNext", n, kname);
+            }
+            let orig = unsafe { BULK_ORIGS[$idx] };
+            if orig == 0 {
+                return false;
+            }
+            let f: extern "C" fn(*mut Il2CppObject) -> bool = unsafe { std::mem::transmute(orig) };
+            f(this)
+        }
+    };
+}
+bulk_hook!(BulkMove0, 0);
+bulk_hook!(BulkMove1, 1);
+bulk_hook!(BulkMove2, 2);
+bulk_hook!(BulkMove3, 3);
+bulk_hook!(BulkMove4, 4);
+bulk_hook!(BulkMove5, 5);
+bulk_hook!(BulkMove6, 6);
+bulk_hook!(BulkMove7, 7);
+
+unsafe fn hook_all_move_next(umamusume: *const Il2CppImage) {
+    use crate::il2cpp::symbols::get_class;
+    use std::ffi::CStr;
+    let _ = get_class(umamusume, c"Gallop", c"StoryViewController");
+
+    let hooks: [usize; 8] = [
+        BulkMove0 as *const () as usize,
+        BulkMove1 as *const () as usize,
+        BulkMove2 as *const () as usize,
+        BulkMove3 as *const () as usize,
+        BulkMove4 as *const () as usize,
+        BulkMove5 as *const () as usize,
+        BulkMove6 as *const () as usize,
+        BulkMove7 as *const () as usize,
+    ];
+
+    let count = crate::il2cpp::api::il2cpp_image_get_class_count(umamusume);
+    let mut slot = 0usize;
+    let mut hooked = 0usize;
+    for i in 0..count {
+        let klass = crate::il2cpp::api::il2cpp_image_get_class(umamusume, i);
+        if klass.is_null() {
+            continue;
+        }
+        let name = CStr::from_ptr((*klass).name).to_string_lossy();
+        let interesting = (name.contains("Story") || name.contains("Timeline"))
+            && name.contains('d');
+        if !interesting {
+            continue;
+        }
+        let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
+        loop {
+            let m = crate::il2cpp::api::il2cpp_class_get_methods(klass as *mut _, &mut iter);
+            if m.is_null() {
+                break;
+            }
+            let mname = CStr::from_ptr((*m).name).to_string_lossy();
+            if mname != "MoveNext" {
+                continue;
+            }
+            let addr = (*m).methodPointer as usize;
+            if addr == 0 {
+                continue;
+            }
+            let h = hooks[slot % 8];
+            let idx = slot % 8;
+            let hachimi = crate::core::Hachimi::instance();
+            if let Ok(tramp) = hachimi.interceptor.hook(addr, h) {
+                BULK_ORIGS[idx] = tramp;
+                slot += 1;
+                hooked += 1;
+            }
+            break;
+        }
+    }
+    warn!("[bulk-move] hooked {} MoveNext coroutines", hooked);
+}
+
 pub fn init(umamusume: *const Il2CppImage) {
     get_class_or_return!(umamusume, Gallop, StoryTimelineController);
 
-    unsafe { hook_story_coroutines(umamusume); }
+    unsafe { hook_all_move_next(umamusume); }
 
     let GotoBlock_addr = get_method_addr(StoryTimelineController, c"GotoBlock", 4);
 
