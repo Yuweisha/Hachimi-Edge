@@ -1,5 +1,5 @@
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 
 use serde::{Deserialize, Serialize};
 use widestring::Utf16Str;
@@ -26,25 +26,6 @@ const CLIP_TEXT_FONT_SIZE_BOLD_CAPTION: i32 = 64;
 const STORY_VIEW_CLIP_TEXT_LINE_WIDTH: i32 = 32;
 
 pub static SKIP_CUTSCENE_REPLACE: AtomicBool = AtomicBool::new(false);
-
-fn should_skip_cutscene(base_path: &str) -> bool {
-    let Some(name) = base_path.rsplit('/').next() else {
-        return false;
-    };
-
-    let Some(code) = name.strip_prefix("storytimeline_50") else {
-        return false;
-    };
-    if code.len() < 7 {
-        return false;
-    }
-    let Ok(series) = code[4..7].parse::<u32>() else {
-        return false;
-    };
-    (100..=119).contains(&series)
-        || (409..=450).contains(&series)
-        || (700..=799).contains(&series)
-}
 
 static mut CLASS: *mut Il2CppClass = null_mut();
 pub fn class() -> *mut Il2CppClass {
@@ -137,8 +118,6 @@ pub fn on_LoadAsset(_bundle: *mut Il2CppObject, this: *mut Il2CppObject, name: &
 
     replace_story_chara_tracks(this);
 
-    // 临时关闭（测试 storyline 替换）：行不通时取消本行注释即可恢复
-    // SKIP_CUTSCENE_REPLACE.store(should_skip_cutscene(&base_path.to_string()), Ordering::Release);
 
     let dict_path = base_path.to_string() + ".json";
 
@@ -353,6 +332,12 @@ fn replace_story_chara_tracks(this: *mut Il2CppObject) {
             };
             let old_dress = StoryTimelineCharaTrackData::get_DressId(chara_track_data);
             let old_head = StoryTimelineCharaTrackData::get_HeadId(chara_track_data);
+            if old_dress >= 100000 {
+                StoryTimelineCharaTrackData::dump_motion_track_data(
+                    chara_track_data,
+                    &format!("dress={} head={}", old_dress, old_head),
+                );
+            }
             let nd = auto_pick_dress_for_track(old_dress, new_chara_id, new_dress_id);
             let (new_dress, new_head) = (nd, sql::get_head_id_from_dress_id(nd));
             let _ = old_head;

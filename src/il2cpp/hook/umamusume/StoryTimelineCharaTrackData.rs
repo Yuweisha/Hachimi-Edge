@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use crate::il2cpp::{symbols::{get_field_from_name, get_field_object_value, get_field_value, set_field_value, FieldsIter}, types::*};
+use crate::il2cpp::{ext::Il2CppObjectExt, symbols::{get_field_from_name, get_field_object_value, get_field_value, set_field_value, FieldsIter}, types::*};
 
 // Special adaptation for the fields in this class because there are SO MANY OF THEM
 static mut MOTION_TRACK_DATA_FIELDS: Vec<*mut FieldInfo> = Vec::new();
@@ -28,6 +28,40 @@ pub fn set_track_chara(this: *mut Il2CppObject, chara_id: i32, dress_id: i32, he
     set_field_value(this, unsafe { CHARA_ID_FIELD }, &chara_id);
     set_field_value(this, unsafe { DRESS_ID_FIELD }, &dress_id);
     set_field_value(this, unsafe { HEAD_ID_FIELD }, &head_id);
+}
+
+
+/// Diagnostic: dump every MotionTrackData sub-object's fields for a track whose
+/// dress id is in the character-specific range. Used to find where the
+/// `_30`-style head/tail sub id in asset paths comes from.
+pub fn dump_motion_track_data(this: *mut Il2CppObject, tag: &str) {
+    unsafe {
+        let mut idx = 0usize;
+        for f in MOTION_TRACK_DATA_FIELDS.iter() {
+            let name = CStr::from_ptr((**f).name).to_string_lossy().to_string();
+            let obj: *mut Il2CppObject = get_field_object_value(this, *f);
+            if obj.is_null() {
+                warn!("[mtdump] {} #{} {} = null", tag, idx, name);
+            } else {
+                let klass = (*obj).klass();
+                let klass_name = if klass.is_null() {
+                    "?".to_string()
+                } else {
+                    CStr::from_ptr((*klass).name).to_string_lossy().to_string()
+                };
+                let mut parts: Vec<String> = Vec::new();
+                for f2 in FieldsIter::new(klass) {
+                    let n2 = CStr::from_ptr((*f2).name).to_string_lossy().to_string();
+                    let off = (*f2).offset;
+                    if off <= 0 || off > 0x200 { continue; }
+                    let v: i32 = *((obj as usize + off as usize) as *const i32);
+                    parts.push(format!("{}={}", n2, v));
+                }
+                warn!("[mtdump] {} #{} {} -> {} [{}]", tag, idx, name, klass_name, parts.join(", "));
+            }
+            idx += 1;
+        }
+    }
 }
 
 pub fn init(umamusume: *const Il2CppImage) {
