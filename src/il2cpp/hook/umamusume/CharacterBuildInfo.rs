@@ -1,4 +1,3 @@
-use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
@@ -6,7 +5,7 @@ use crate::{
     il2cpp::symbols::Thread,
     il2cpp::{
         sql,
-        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value, FieldsIter},
+        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value},
         types::*,
     },
 };
@@ -35,6 +34,11 @@ pub enum UmaControllerType {
 }
 
 fn is_replacable(controller_type: i32) -> bool {
+    // Orig（0x1919810）是 BuildChara 构建"原始/参考角色"时用的类型：
+    // 它是动画重定向的目标骨架，替换掉会让动作绑定失效（角色摊成 T-pose）。
+    if controller_type == UmaControllerType::Orig as i32 {
+        return false;
+    }
     !matches!(controller_type, 0x0 | 0x7 | 0x8 | 0xd)
 }
 
@@ -58,6 +62,12 @@ fn dress_belongs_to(dress_id: i32, chara_id: i32) -> bool {
 }
 
 fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
+    // 通用服装（运动服/泳装等，id < 100000）全角色共享，不存在"属于谁"的问题，
+    // 也不能因为换了角色就改成目标角色的专属服装（训练场/Live 会穿帮）。
+    if *dress_id < 100000 {
+        return;
+    }
+
     if dress_belongs_to(*dress_id, chara_id) {
         return;
     }
@@ -76,27 +86,31 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
-/// 按原服装的"类型"挑目标角色的对应套，而不是一路套用条目里写死的那件。
-///
-/// 通用服装（id < 100000，泳装/体操服这些全角色共享的）原样返回 —— 泳池场景本来该穿
-/// 泳装，硬换成决胜服就穿帮了。
-///
-/// 场景要的是**默认套**（head_sub_id = 0，也就是决胜服）时，用规则里指定的那件：
-/// 那是用户自己挑的，比对类型更符合预期。只有非默认套才按 head_sub_id 去目标角色身上找。
 pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
+    let base = target_chara_id * 100;
+
+    // 通用服装（id < 100000）不都真的"全角色通用"：只有 body_type 与目标角色
+    // 默认套一致的才能直接穿（运动服 body_type 2、拉面店制服 3 这类）。
+    // 反例：dress 56 chara_id 也是 0，但 body_type = 19，体型 100 的角色穿上后
+    // 骨骼绑定不上 → 加载无限等待。
     if orig_dress_id < 100000 {
+        let orig_body = sql::get_body_type_from_dress_id(orig_dress_id);
+        let target_body = sql::get_default_body_type(target_chara_id);
+        if orig_body == 0 || target_body == 0 || orig_body == target_body {
+            return orig_dress_id;
+        }
+        let fallback = base + 1;
+        if sql::get_dress_info(fallback).is_some() {
+            return fallback;
+        }
         return orig_dress_id;
     }
 
     let want_head_sub = sql::get_head_id_from_dress_id(orig_dress_id);
 
-    if want_head_sub == 0
-        && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id
-    {
+    if want_head_sub == 0 && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id {
         return preferred_dress_id;
     }
-
-    let base = target_chara_id * 100;
 
     if let Some(d) = (base..base + 100).find(|d| {
         sql::get_dress_chara_id(*d) == target_chara_id
@@ -111,6 +125,67 @@ pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress
     }
 
     orig_dress_id
+}
+
+/// 轨道替换（story 加载阶段）专用：那时 CURRENT_CONTROLLER_TYPE 还没被设置，
+/// 无法靠它判断场景。
+///
+/// 通用服装（id < 100000，拉面店制服/运动服/泳装这类全角色共享的）一律原样保留 ——
+/// 它们对任何角色都成立，换掉反而穿帮（拉面店剧情里四人都穿制服，只有主角换了决胜服）。
+/// 只有专属服装（>= 100000，属于原角色）才需要按类型换成目标角色的对应套。
+pub fn auto_pick_dress_for_track(
+    orig_dress_id: i32,
+    target_chara_id: i32,
+    preferred_dress_id: i32,
+) -> i32 {
+    let base = target_chara_id * 100;
+    if orig_dress_id < 100000 {
+        let orig_body = sql::get_body_type_from_dress_id(orig_dress_id);
+        let target_body = sql::get_default_body_type(target_chara_id);
+        if orig_body == 0 || target_body == 0 || orig_body == target_body {
+            return orig_dress_id;
+        }
+        let fallback = base + 1;
+        if sql::get_dress_info(fallback).is_some() {
+            return fallback;
+        }
+        return orig_dress_id;
+    }
+
+    let want_head_sub = sql::get_head_id_from_dress_id(orig_dress_id);
+    if want_head_sub == 0 && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id {
+        return preferred_dress_id;
+    }
+    if let Some(d) = (base..base + 100).find(|d| {
+        sql::get_dress_chara_id(*d) == target_chara_id
+            && sql::get_head_id_from_dress_id(*d) == want_head_sub
+    }) {
+        return d;
+    }
+    let fallback = base + 1;
+    if sql::get_dress_info(fallback).is_some() {
+        return fallback;
+    }
+    orig_dress_id
+}
+
+static CHARA_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
+
+fn chara_table_ready() -> bool {
+    if sql::is_chara_data_ready() {
+        return true;
+    }
+
+    if !CHARA_PRELOAD_SCHEDULED.swap(true, Ordering::AcqRel) {
+        Thread::main_thread().schedule(|| {
+            if !sql::preload_chara_data() {
+                debug!("[replace] master.mdb 还没就绪，角色表稍后再加载");
+            }
+            CHARA_PRELOAD_SCHEDULED.store(false, Ordering::Release);
+        });
+    }
+
+    false
 }
 
 static DRESS_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
@@ -182,6 +257,12 @@ fn replace_char_controller(
         return false;
     }
 
+    if controller_type == UmaControllerType::EventTimeline as i32
+        && crate::il2cpp::hook::umamusume::StoryTimelineData::SKIP_CUTSCENE_REPLACE.load(Ordering::Acquire)
+    {
+        return false;
+    }
+
     if !char_replace.replace_in_cutscene
         && matches!(
             controller_type,
@@ -197,6 +278,11 @@ fn replace_char_controller(
     }
 
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
+        if crate::il2cpp::hook::umamusume::SceneManager::is_race_scene_family()
+            && (!chara_table_ready() || !sql::is_playable_chara(new_chara_id))
+        {
+            return false;
+        }
         let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
         *dress_id = if char_replace.auto_dress {
@@ -220,9 +306,6 @@ fn replace_char_controller(
 pub static CURRENT_CONTROLLER_TYPE: std::sync::atomic::AtomicI32 =
     std::sync::atomic::AtomicI32::new(-1);
 
-static mut BUILD_INFO_CLASS: *mut Il2CppClass = 0 as _;
-static DUMPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
 static mut CHARA_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut CARD_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
@@ -239,41 +322,12 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
             let controller_type: i32 = get_field_value(this, CONTROLLER_TYPE_FIELD);
             CURRENT_CONTROLLER_TYPE.store(controller_type, Ordering::Release);
             let mut head_model_sub_id: i32 = get_field_value(this, HEAD_MODEL_SUB_ID_FIELD);
-            let orig_motion_dress_id: i32 = get_field_value(this, MOTION_DRESS_ID_FIELD);
-            let (orig_chara, orig_dress, orig_head) = (chara_id, dress_id, head_model_sub_id);
-
-            if controller_type == 3 && !DUMPED.swap(true, Ordering::Relaxed) {
-                warn!("[dump] === CharacterBuildInfo 全部字段 ===");
-                for f in FieldsIter::new(BUILD_INFO_CLASS) {
-                    unsafe {
-                        let name = CStr::from_ptr((*f).name).to_string_lossy().to_string();
-                        let off = (*f).offset;
-                        if off <= 0 || off > 0x200 { continue; }
-                        let v: i32 = *((this as usize + off as usize) as *const i32);
-                        warn!("[dump] {:<34} off={:<4} i32={}", name, off, v);
-                    }
-                }
-            }
 
             if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false) {
-                debug!(
-                    "[replace] ctrl={} chara={} dress={} motionDress={} head={} -> chara={} dress={} head={}",
-                    controller_type, orig_chara, orig_dress, orig_motion_dress_id, orig_head, chara_id, dress_id, head_model_sub_id
-                );
-
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);
                 set_field_value(this, DRESS_ID_FIELD, &dress_id);
                 set_field_value(this, HEAD_MODEL_SUB_ID_FIELD, &head_model_sub_id);
-
-                // 动作 dress 决定游戏去哪个角色身上取动作，不能一路套用新服装：
-                // 通用服装（泳装这类，< 100000）保持原样，专属服装才跟着角色一起换。
-                let new_motion_dress_id = if orig_motion_dress_id < 100000 || orig_motion_dress_id == dress_id {
-                    orig_motion_dress_id
-                } else {
-                    dress_id
-                };
-                set_field_value(this, MOTION_DRESS_ID_FIELD, &new_motion_dress_id);
-
+                set_field_value(this, MOTION_DRESS_ID_FIELD, &dress_id);
                 let no_card_id = -1;
                 set_field_value(this, CARD_ID_FIELD, &no_card_id);
             }
@@ -313,7 +367,6 @@ fn init_character_build_info(umamusume: *const Il2CppImage) {
     new_hook!(CharacterBuildInfo_Rebuild_addr, CharacterBuildInfo_Rebuild);
 
     unsafe {
-        BUILD_INFO_CLASS = CharacterBuildInfo;
         CHARA_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_charaId");
         CARD_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_cardId");
         DRESS_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_dressId");

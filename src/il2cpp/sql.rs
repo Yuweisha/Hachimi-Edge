@@ -1211,6 +1211,10 @@ pub fn get_all_dress_ids() -> Vec<i32> {
 pub struct DressInfo {
     pub head_sub_id: i32,
     pub have_mini: bool,
+    /// Body type the dress is rigged for. Universal dresses are only
+    /// interchangeable within the same body type (dress 56 is chara_id 0 but
+    /// body_type 19, so a body_type-100 character cannot wear it).
+    pub body_type: i32,
     /// Which character the dress belongs to. Universal dresses (the gym
     /// uniform, school uniform and friends) carry 0 and suit anyone.
     pub chara_id: i32
@@ -1224,13 +1228,14 @@ fn load_dress_info() -> FnvHashMap<i32, DressInfo> {
     let conn = Connection::new();
 
     if Connection::Open(conn, db_path.to_il2cpp_string(), ptr::null_mut(), ptr::null_mut(), 0) {
-        let query = Connection::Query(conn, "SELECT id, head_sub_id, have_mini, chara_id FROM dress_data".to_il2cpp_string());
+        let query = Connection::Query(conn, "SELECT id, head_sub_id, have_mini, chara_id, body_type FROM dress_data".to_il2cpp_string());
         if !query.is_null() {
             while Query::Step(query) {
                 items.insert(Query::GetInt(query, 0), DressInfo {
                     head_sub_id: Query::GetInt(query, 1),
                     have_mini: Query::GetInt(query, 2) != 0,
-                    chara_id: Query::GetInt(query, 3)
+                    chara_id: Query::GetInt(query, 3),
+                    body_type: Query::GetInt(query, 4)
                 });
             }
             Query::Dispose(query);
@@ -1290,6 +1295,19 @@ pub fn get_head_id_from_dress_id(dress_id: i32) -> i32 {
 }
 
 /// Which character a dress belongs to; 0 for the universal ones.
+pub fn get_body_type_from_dress_id(dress_id: i32) -> i32 {
+    DRESS_INFO_CACHE.read().unwrap().as_ref()
+        .and_then(|m| m.get(&dress_id))
+        .map(|d| d.body_type)
+        .unwrap_or(0)
+}
+
+/// Body type of the character's default outfit — the rig every character's
+/// animations are driven against.
+pub fn get_default_body_type(chara_id: i32) -> i32 {
+    get_body_type_from_dress_id(chara_id * 100 + 1)
+}
+
 pub fn get_dress_chara_id(dress_id: i32) -> i32 {
     get_dress_info(dress_id).map(|info| info.chara_id).unwrap_or(0)
 }

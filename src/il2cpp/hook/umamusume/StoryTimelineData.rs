@@ -11,7 +11,7 @@ use crate::{
     }
 };
 
-use super::{CharacterBuildInfo::{auto_pick_dress, find_replacement}, StoryTimelineBlockData, StoryTimelineTextClipData, StoryTimelineTrackData};
+use super::{CharacterBuildInfo::{auto_pick_dress_for_track, find_replacement}, StoryTimelineBlockData, StoryTimelineTextClipData, StoryTimelineTrackData};
 
 const CLIP_TEXT_LINE_WIDTH: i32 = 21;
 const CLIP_TEXT_LINE_COUNT: i32 = 3;
@@ -353,12 +353,9 @@ fn replace_story_chara_tracks(this: *mut Il2CppObject) {
             };
             let old_dress = StoryTimelineCharaTrackData::get_DressId(chara_track_data);
             let old_head = StoryTimelineCharaTrackData::get_HeadId(chara_track_data);
-            let (new_dress, new_head) = if old_dress < 100000 {
-                (old_dress, old_head)
-            } else {
-                let nd = auto_pick_dress(old_dress, new_chara_id, new_dress_id);
-                (nd, sql::get_head_id_from_dress_id(nd))
-            };
+            let nd = auto_pick_dress_for_track(old_dress, new_chara_id, new_dress_id);
+            let (new_dress, new_head) = (nd, sql::get_head_id_from_dress_id(nd));
+            let _ = old_head;
             StoryTimelineCharaTrackData::set_track_chara(chara_track_data, new_chara_id, new_dress, new_head);
             replaced += 1;
             debug!(
