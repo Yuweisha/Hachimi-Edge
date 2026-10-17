@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
@@ -5,7 +6,7 @@ use crate::{
     il2cpp::symbols::Thread,
     il2cpp::{
         sql,
-        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value},
+        symbols::{get_field_from_name, get_field_value, get_method_addr, set_field_value, FieldsIter},
         types::*,
     },
 };
@@ -75,6 +76,13 @@ fn align_dress_with_chara(dress_id: &mut i32, chara_id: i32) {
     }
 }
 
+/// 按原服装的"类型"挑目标角色的对应套，而不是一路套用条目里写死的那件。
+///
+/// 通用服装（id < 100000，泳装/体操服这些全角色共享的）原样返回 —— 泳池场景本来该穿
+/// 泳装，硬换成决胜服就穿帮了。
+///
+/// 场景要的是**默认套**（head_sub_id = 0，也就是决胜服）时，用规则里指定的那件：
+/// 那是用户自己挑的，比对类型更符合预期。只有非默认套才按 head_sub_id 去目标角色身上找。
 pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress_id: i32) -> i32 {
     if orig_dress_id < 100000 {
         return orig_dress_id;
@@ -82,7 +90,9 @@ pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress
 
     let want_head_sub = sql::get_head_id_from_dress_id(orig_dress_id);
 
-    if want_head_sub == 0 && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id {
+    if want_head_sub == 0
+        && sql::get_dress_chara_id(preferred_dress_id) == target_chara_id
+    {
         return preferred_dress_id;
     }
 
@@ -101,25 +111,6 @@ pub fn auto_pick_dress(orig_dress_id: i32, target_chara_id: i32, preferred_dress
     }
 
     orig_dress_id
-}
-
-static CHARA_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
-
-fn chara_table_ready() -> bool {
-    if sql::is_chara_data_ready() {
-        return true;
-    }
-
-    if !CHARA_PRELOAD_SCHEDULED.swap(true, Ordering::AcqRel) {
-        Thread::main_thread().schedule(|| {
-            if !sql::preload_chara_data() {
-                debug!("[replace] master.mdb 还没就绪，角色表稍后再加载");
-            }
-            CHARA_PRELOAD_SCHEDULED.store(false, Ordering::Release);
-        });
-    }
-
-    false
 }
 
 static DRESS_PRELOAD_SCHEDULED: AtomicBool = AtomicBool::new(false);
@@ -141,28 +132,15 @@ fn dress_table_ready() -> bool {
     false
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum ReplaceMode {
-    Rebuild,
-    Ctor,
-    Any,
-}
-
 fn replace_char_controller(
     chara_id: &mut i32, dress_id: &mut i32, head_id: &mut i32,
-    controller_type: i32, allow_orig: bool, mode: ReplaceMode
+    controller_type: i32, allow_orig: bool
 ) -> bool {
     let hachimi = Hachimi::instance();
     let config = hachimi.config.load();
     let char_replace = &config.replace_global_char;
 
-    let enabled = match mode {
-        ReplaceMode::Rebuild => char_replace.enable && !config.replace_mode_ctor,
-        ReplaceMode::Ctor => config.replace_mode_ctor,
-        ReplaceMode::Any => char_replace.enable || config.replace_mode_ctor,
-    };
-
-    if !enabled {
+    if !char_replace.enable {
         return false;
     }
 
@@ -204,10 +182,6 @@ fn replace_char_controller(
         return false;
     }
 
-    if controller_type == UmaControllerType::EventTimeline as i32 {
-        return false;
-    }
-
     if !char_replace.replace_in_cutscene
         && matches!(
             controller_type,
@@ -223,11 +197,6 @@ fn replace_char_controller(
     }
 
     if let Some((new_chara_id, new_dress_id)) = find_replacement(char_replace, *chara_id, false) {
-        if crate::il2cpp::hook::umamusume::SceneManager::is_race_scene_family()
-            && (!chara_table_ready() || !sql::is_playable_chara(new_chara_id))
-        {
-            return false;
-        }
         let orig = (*chara_id, *dress_id, *head_id);
         *chara_id = new_chara_id;
         *dress_id = if char_replace.auto_dress {
@@ -247,37 +216,14 @@ fn replace_char_controller(
     false
 }
 
+/// 当前场景类型，供资源层判断是不是过场（过场只换模型、不换角色数据）。
+pub static CURRENT_CONTROLLER_TYPE: std::sync::atomic::AtomicI32 =
+    std::sync::atomic::AtomicI32::new(-1);
+
+static mut BUILD_INFO_CLASS: *mut Il2CppClass = 0 as _;
+static DUMPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 static mut CHARA_ID_FIELD: *mut FieldInfo = 0 as _;
-type CBICtor0Fn = extern "C" fn(this: *mut Il2CppObject, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, extra_bool: bool);
-extern "C" fn CharacterBuildInfo_Ctor0(this: *mut Il2CppObject, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, extra_bool: bool) {
-    let mut cid = chara_id;
-    let mut did = dress_id;
-    let mut hid = head_id;
-    let replaced = replace_char_controller(&mut cid, &mut did, &mut hid, controller_type, false, ReplaceMode::Ctor);
-    let (f_cid, f_did, f_hid) = if replaced {
-        debug!("[replace-ctor0] chara {}->{} dress {}->{} ctrl={}", chara_id, cid, dress_id, did, controller_type);
-        (cid, did, hid)
-    } else {
-        (chara_id, dress_id, head_id)
-    };
-    get_orig_fn!(CharacterBuildInfo_Ctor0, CBICtor0Fn)(this, f_cid, f_did, controller_type, f_hid, zekken, mob_id, back_dancer_color_id, is_use_dress_data_head_model_sub_id, audience_id, motion_dress_id, is_enable_model_cache, extra_bool)
-}
-
-type CBICtor1Fn = extern "C" fn(this: *mut Il2CppObject, card_id: i32, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, override_cloth_category: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, chara_dress_color_set_id: i32, extra_bool: bool);
-extern "C" fn CharacterBuildInfo_Ctor1(this: *mut Il2CppObject, card_id: i32, chara_id: i32, dress_id: i32, controller_type: i32, head_id: i32, zekken: i32, mob_id: i32, back_dancer_color_id: i32, override_cloth_category: i32, is_use_dress_data_head_model_sub_id: bool, audience_id: i32, motion_dress_id: i32, is_enable_model_cache: bool, chara_dress_color_set_id: i32, extra_bool: bool) {
-    let mut cid = chara_id;
-    let mut did = dress_id;
-    let mut hid = head_id;
-    let replaced = replace_char_controller(&mut cid, &mut did, &mut hid, controller_type, false, ReplaceMode::Ctor);
-    let (f_cid, f_did, f_hid) = if replaced {
-        debug!("[replace-ctor1] card={} chara {}->{} dress {}->{} ctrl={}", card_id, chara_id, cid, dress_id, did, controller_type);
-        (cid, did, hid)
-    } else {
-        (chara_id, dress_id, head_id)
-    };
-    get_orig_fn!(CharacterBuildInfo_Ctor1, CBICtor1Fn)(this, card_id, f_cid, f_did, controller_type, f_hid, zekken, mob_id, back_dancer_color_id, override_cloth_category, is_use_dress_data_head_model_sub_id, audience_id, motion_dress_id, is_enable_model_cache, chara_dress_color_set_id, extra_bool)
-}
-
 static mut CARD_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut DRESS_ID_FIELD: *mut FieldInfo = 0 as _;
 static mut CONTROLLER_TYPE_FIELD: *mut FieldInfo = 0 as _;
@@ -291,13 +237,43 @@ extern "C" fn CharacterBuildInfo_Rebuild(this: *mut Il2CppObject) {
             let mut chara_id: i32 = get_field_value(this, CHARA_ID_FIELD);
             let mut dress_id: i32 = get_field_value(this, DRESS_ID_FIELD);
             let controller_type: i32 = get_field_value(this, CONTROLLER_TYPE_FIELD);
+            CURRENT_CONTROLLER_TYPE.store(controller_type, Ordering::Release);
             let mut head_model_sub_id: i32 = get_field_value(this, HEAD_MODEL_SUB_ID_FIELD);
+            let orig_motion_dress_id: i32 = get_field_value(this, MOTION_DRESS_ID_FIELD);
+            let (orig_chara, orig_dress, orig_head) = (chara_id, dress_id, head_model_sub_id);
 
-            if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false, ReplaceMode::Rebuild) {
+            if controller_type == 3 && !DUMPED.swap(true, Ordering::Relaxed) {
+                warn!("[dump] === CharacterBuildInfo 全部字段 ===");
+                for f in FieldsIter::new(BUILD_INFO_CLASS) {
+                    unsafe {
+                        let name = CStr::from_ptr((*f).name).to_string_lossy().to_string();
+                        let off = (*f).offset;
+                        if off <= 0 || off > 0x200 { continue; }
+                        let v: i32 = *((this as usize + off as usize) as *const i32);
+                        warn!("[dump] {:<34} off={:<4} i32={}", name, off, v);
+                    }
+                }
+            }
+
+            if replace_char_controller(&mut chara_id, &mut dress_id, &mut head_model_sub_id, controller_type, false) {
+                debug!(
+                    "[replace] ctrl={} chara={} dress={} motionDress={} head={} -> chara={} dress={} head={}",
+                    controller_type, orig_chara, orig_dress, orig_motion_dress_id, orig_head, chara_id, dress_id, head_model_sub_id
+                );
+
                 set_field_value(this, CHARA_ID_FIELD, &chara_id);
                 set_field_value(this, DRESS_ID_FIELD, &dress_id);
                 set_field_value(this, HEAD_MODEL_SUB_ID_FIELD, &head_model_sub_id);
-                set_field_value(this, MOTION_DRESS_ID_FIELD, &dress_id);
+
+                // 动作 dress 决定游戏去哪个角色身上取动作，不能一路套用新服装：
+                // 通用服装（泳装这类，< 100000）保持原样，专属服装才跟着角色一起换。
+                let new_motion_dress_id = if orig_motion_dress_id < 100000 || orig_motion_dress_id == dress_id {
+                    orig_motion_dress_id
+                } else {
+                    dress_id
+                };
+                set_field_value(this, MOTION_DRESS_ID_FIELD, &new_motion_dress_id);
+
                 let no_card_id = -1;
                 set_field_value(this, CARD_ID_FIELD, &no_card_id);
             }
@@ -316,7 +292,7 @@ extern "C" fn GetRaceDressId(this: *mut Il2CppObject, _is_apply_dress_change: bo
         let mut new_chara_id = chara_id;
         let mut new_dress_id = ret;
         let mut new_head_id = 0;
-        if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32, true, ReplaceMode::Any) {
+        if replace_char_controller(&mut new_chara_id, &mut new_dress_id, &mut new_head_id, UmaControllerType::Orig as i32, true) {
             if dress_belongs_to(new_dress_id, chara_id) {
                 return new_dress_id;
             }
@@ -336,31 +312,8 @@ fn init_character_build_info(umamusume: *const Il2CppImage) {
     let CharacterBuildInfo_Rebuild_addr = get_method_addr(CharacterBuildInfo, c"Rebuild", 0);
     new_hook!(CharacterBuildInfo_Rebuild_addr, CharacterBuildInfo_Rebuild);
 
-    let ctor0 = get_method_addr(CharacterBuildInfo, c".ctor", 12);
-    if ctor0 != 0 { new_hook!(ctor0, CharacterBuildInfo_Ctor0); }
-    let ctor1 = get_method_addr(CharacterBuildInfo, c".ctor", 15);
-    if ctor1 != 0 { new_hook!(ctor1, CharacterBuildInfo_Ctor1); }
-
     unsafe {
-        let mut iter: *mut std::ffi::c_void = std::ptr::null_mut();
-        loop {
-            let m = crate::il2cpp::api::il2cpp_class_get_methods(CharacterBuildInfo, &mut iter);
-            if m.is_null() { break; }
-            let name = std::ffi::CStr::from_ptr((*m).name).to_string_lossy();
-            if name == ".ctor" {
-                let argc = crate::il2cpp::api::il2cpp_method_get_param_count(m);
-                let mut sig: Vec<String> = Vec::new();
-                for i in 0..argc {
-                    let ty = crate::il2cpp::api::il2cpp_method_get_param(m, i);
-                    let p = if ty.is_null() { std::ptr::null() } else { crate::il2cpp::api::il2cpp_type_get_name(ty) };
-                    sig.push(if p.is_null() { "?".to_string() } else { std::ffi::CStr::from_ptr(p).to_string_lossy().to_string() });
-                }
-                info!("[replace] CharacterBuildInfo .ctor argc={} addr={:#x} params=[{}]", argc, (*m).methodPointer, sig.join(", "));
-            }
-        }
-    }
-
-    unsafe {
+        BUILD_INFO_CLASS = CharacterBuildInfo;
         CHARA_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_charaId");
         CARD_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_cardId");
         DRESS_ID_FIELD = get_field_from_name(CharacterBuildInfo, c"_dressId");

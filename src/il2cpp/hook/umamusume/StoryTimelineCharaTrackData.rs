@@ -46,5 +46,22 @@ pub fn init(umamusume: *const Il2CppImage) {
         CHARA_ID_FIELD = get_field_from_name(StoryTimelineCharaTrackData, c"CharaId");
         DRESS_ID_FIELD = get_field_from_name(StoryTimelineCharaTrackData, c"DressId");
         HEAD_ID_FIELD = get_field_from_name(StoryTimelineCharaTrackData, c"HeadId");
+        if CHARA_ID_FIELD.is_null() || DRESS_ID_FIELD.is_null() || HEAD_ID_FIELD.is_null() {
+            warn!(
+                "[track] 字段查找不全: CharaId={:#x} DressId={:#x} HeadId={:#x}",
+                CHARA_ID_FIELD as usize, DRESS_ID_FIELD as usize, HEAD_ID_FIELD as usize
+            );
+        } else {
+            warn!(
+                "[track] 字段就绪: CharaId@{} DressId@{} HeadId@{}",
+                (*CHARA_ID_FIELD).offset, (*DRESS_ID_FIELD).offset, (*HEAD_ID_FIELD).offset
+            );
+        }
+
+        // 调试：打印全部字段（找可能漏改的角色相关字段）
+        for f in FieldsIter::new(StoryTimelineCharaTrackData) {
+            let fname = CStr::from_ptr((*f).name).to_string_lossy().to_string();
+            warn!("[track] 全字段: {} @{}", fname, (*f).offset);
+        }
     }
 }
